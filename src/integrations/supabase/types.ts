@@ -14,40 +14,7 @@ export type Database = {
   }
   public: {
     Tables: {
-      anaji_admin_users: {
-        Row: {
-          created_at: string
-          email: string
-          id: string
-          is_active: boolean
-          name: string
-          password_hash: string
-          role: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          email: string
-          id?: string
-          is_active?: boolean
-          name: string
-          password_hash: string
-          role?: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          email?: string
-          id?: string
-          is_active?: boolean
-          name?: string
-          password_hash?: string
-          role?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      anaji_admins: {
+      admins: {
         Row: {
           active: boolean | null
           created_at: string | null
@@ -86,117 +53,7 @@ export type Database = {
         }
         Relationships: []
       }
-      anaji_categories: {
-        Row: {
-          created_at: string
-          description: string | null
-          id: string
-          image_url: string | null
-          is_active: boolean
-          name: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          description?: string | null
-          id?: string
-          image_url?: string | null
-          is_active?: boolean
-          name: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          description?: string | null
-          id?: string
-          image_url?: string | null
-          is_active?: boolean
-          name?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      anaji_chat_messages: {
-        Row: {
-          chat_id: string | null
-          created_at: string
-          id: string
-          is_read: boolean
-          message: string
-          sender_id: string
-          sender_type: string
-        }
-        Insert: {
-          chat_id?: string | null
-          created_at?: string
-          id?: string
-          is_read?: boolean
-          message: string
-          sender_id: string
-          sender_type: string
-        }
-        Update: {
-          chat_id?: string | null
-          created_at?: string
-          id?: string
-          is_read?: boolean
-          message?: string
-          sender_id?: string
-          sender_type?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "nana_chat_messages_chat_id_fkey"
-            columns: ["chat_id"]
-            isOneToOne: false
-            referencedRelation: "anaji_chats"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      anaji_chats: {
-        Row: {
-          admin_id: string | null
-          created_at: string
-          customer_id: string | null
-          id: string
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          admin_id?: string | null
-          created_at?: string
-          customer_id?: string | null
-          id?: string
-          status?: string
-          updated_at?: string
-        }
-        Update: {
-          admin_id?: string | null
-          created_at?: string
-          customer_id?: string | null
-          id?: string
-          status?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "nana_chats_admin_id_fkey"
-            columns: ["admin_id"]
-            isOneToOne: false
-            referencedRelation: "anaji_admin_users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "nana_chats_customer_id_fkey"
-            columns: ["customer_id"]
-            isOneToOne: false
-            referencedRelation: "anaji_customers"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      anaji_customer_presence: {
+      customer_presence: {
         Row: {
           created_at: string
           customer_id: string
@@ -226,54 +83,12 @@ export type Database = {
             foreignKeyName: "customer_presence_customer_id_fkey"
             columns: ["customer_id"]
             isOneToOne: false
-            referencedRelation: "anaji_customers"
+            referencedRelation: "nana_customers"
             referencedColumns: ["id"]
           },
         ]
       }
-      anaji_customers: {
-        Row: {
-          address: string | null
-          created_at: string
-          email: string | null
-          id: string
-          last_contact: string | null
-          name: string
-          national_id: string | null
-          phone: string
-          status: string | null
-          total_messages: number | null
-          updated_at: string
-        }
-        Insert: {
-          address?: string | null
-          created_at?: string
-          email?: string | null
-          id?: string
-          last_contact?: string | null
-          name: string
-          national_id?: string | null
-          phone: string
-          status?: string | null
-          total_messages?: number | null
-          updated_at?: string
-        }
-        Update: {
-          address?: string | null
-          created_at?: string
-          email?: string | null
-          id?: string
-          last_contact?: string | null
-          name?: string
-          national_id?: string | null
-          phone?: string
-          status?: string | null
-          total_messages?: number | null
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      anaji_ejcon_admins: {
+      ejcon_admins: {
         Row: {
           active: boolean
           created_at: string
@@ -315,7 +130,374 @@ export type Database = {
         }
         Relationships: []
       }
-      anaji_foods: {
+      groups: {
+        Row: {
+          color: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          color?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      members: {
+        Row: {
+          active: boolean | null
+          created_at: string | null
+          email: string | null
+          group_id: string | null
+          id: string
+          join_date: string | null
+          name: string
+          phone: string
+          updated_at: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          created_at?: string | null
+          email?: string | null
+          group_id?: string | null
+          id?: string
+          join_date?: string | null
+          name: string
+          phone: string
+          updated_at?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          created_at?: string | null
+          email?: string | null
+          group_id?: string | null
+          id?: string
+          join_date?: string | null
+          name?: string
+          phone?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "members_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      message_groups: {
+        Row: {
+          created_at: string | null
+          group_id: string | null
+          id: string
+          message_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          group_id?: string | null
+          id?: string
+          message_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          group_id?: string | null
+          id?: string
+          message_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_groups_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_groups_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      message_recipients: {
+        Row: {
+          created_at: string | null
+          delivered_at: string | null
+          id: string
+          member_id: string | null
+          message_id: string | null
+          status: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          delivered_at?: string | null
+          id?: string
+          member_id?: string | null
+          message_id?: string | null
+          status?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          delivered_at?: string | null
+          id?: string
+          member_id?: string | null
+          message_id?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_recipients_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_recipients_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      messages: {
+        Row: {
+          content: string
+          created_at: string | null
+          delivered_count: number | null
+          id: string
+          sent_at: string | null
+          status: string | null
+          total_recipients: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          content: string
+          created_at?: string | null
+          delivered_count?: number | null
+          id?: string
+          sent_at?: string | null
+          status?: string | null
+          total_recipients?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          content?: string
+          created_at?: string | null
+          delivered_count?: number | null
+          id?: string
+          sent_at?: string | null
+          status?: string | null
+          total_recipients?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      nana_admin_users: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          is_active: boolean
+          name: string
+          password_hash: string
+          role: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          is_active?: boolean
+          name: string
+          password_hash: string
+          role?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          password_hash?: string
+          role?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      nana_categories: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          image_url: string | null
+          is_active: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      nana_chat_messages: {
+        Row: {
+          chat_id: string | null
+          created_at: string
+          id: string
+          is_read: boolean
+          message: string
+          sender_id: string
+          sender_type: string
+        }
+        Insert: {
+          chat_id?: string | null
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message: string
+          sender_id: string
+          sender_type: string
+        }
+        Update: {
+          chat_id?: string | null
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message?: string
+          sender_id?: string
+          sender_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nana_chat_messages_chat_id_fkey"
+            columns: ["chat_id"]
+            isOneToOne: false
+            referencedRelation: "nana_chats"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      nana_chats: {
+        Row: {
+          admin_id: string | null
+          created_at: string
+          customer_id: string | null
+          id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          admin_id?: string | null
+          created_at?: string
+          customer_id?: string | null
+          id?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          admin_id?: string | null
+          created_at?: string
+          customer_id?: string | null
+          id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nana_chats_admin_id_fkey"
+            columns: ["admin_id"]
+            isOneToOne: false
+            referencedRelation: "nana_admin_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nana_chats_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "nana_customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      nana_customers: {
+        Row: {
+          address: string | null
+          created_at: string
+          email: string | null
+          id: string
+          last_contact: string | null
+          name: string
+          national_id: string | null
+          phone: string
+          status: string | null
+          total_messages: number | null
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          last_contact?: string | null
+          name: string
+          national_id?: string | null
+          phone: string
+          status?: string | null
+          total_messages?: number | null
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          last_contact?: string | null
+          name?: string
+          national_id?: string | null
+          phone?: string
+          status?: string | null
+          total_messages?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      nana_foods: {
         Row: {
           category_id: string | null
           created_at: string
@@ -357,194 +539,12 @@ export type Database = {
             foreignKeyName: "nana_foods_category_id_fkey"
             columns: ["category_id"]
             isOneToOne: false
-            referencedRelation: "anaji_categories"
+            referencedRelation: "nana_categories"
             referencedColumns: ["id"]
           },
         ]
       }
-      anaji_groups: {
-        Row: {
-          color: string | null
-          created_at: string | null
-          description: string | null
-          id: string
-          name: string
-          updated_at: string | null
-        }
-        Insert: {
-          color?: string | null
-          created_at?: string | null
-          description?: string | null
-          id?: string
-          name: string
-          updated_at?: string | null
-        }
-        Update: {
-          color?: string | null
-          created_at?: string | null
-          description?: string | null
-          id?: string
-          name?: string
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
-      anaji_members: {
-        Row: {
-          active: boolean | null
-          created_at: string | null
-          email: string | null
-          group_id: string | null
-          id: string
-          join_date: string | null
-          name: string
-          phone: string
-          updated_at: string | null
-        }
-        Insert: {
-          active?: boolean | null
-          created_at?: string | null
-          email?: string | null
-          group_id?: string | null
-          id?: string
-          join_date?: string | null
-          name: string
-          phone: string
-          updated_at?: string | null
-        }
-        Update: {
-          active?: boolean | null
-          created_at?: string | null
-          email?: string | null
-          group_id?: string | null
-          id?: string
-          join_date?: string | null
-          name?: string
-          phone?: string
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "members_group_id_fkey"
-            columns: ["group_id"]
-            isOneToOne: false
-            referencedRelation: "anaji_groups"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      anaji_message_groups: {
-        Row: {
-          created_at: string | null
-          group_id: string | null
-          id: string
-          message_id: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          group_id?: string | null
-          id?: string
-          message_id?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          group_id?: string | null
-          id?: string
-          message_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "message_groups_group_id_fkey"
-            columns: ["group_id"]
-            isOneToOne: false
-            referencedRelation: "anaji_groups"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "message_groups_message_id_fkey"
-            columns: ["message_id"]
-            isOneToOne: false
-            referencedRelation: "anaji_messages"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      anaji_message_recipients: {
-        Row: {
-          created_at: string | null
-          delivered_at: string | null
-          id: string
-          member_id: string | null
-          message_id: string | null
-          status: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          delivered_at?: string | null
-          id?: string
-          member_id?: string | null
-          message_id?: string | null
-          status?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          delivered_at?: string | null
-          id?: string
-          member_id?: string | null
-          message_id?: string | null
-          status?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "message_recipients_member_id_fkey"
-            columns: ["member_id"]
-            isOneToOne: false
-            referencedRelation: "anaji_members"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "message_recipients_message_id_fkey"
-            columns: ["message_id"]
-            isOneToOne: false
-            referencedRelation: "anaji_messages"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      anaji_messages: {
-        Row: {
-          content: string
-          created_at: string | null
-          delivered_count: number | null
-          id: string
-          sent_at: string | null
-          status: string | null
-          total_recipients: number | null
-          updated_at: string | null
-        }
-        Insert: {
-          content: string
-          created_at?: string | null
-          delivered_count?: number | null
-          id?: string
-          sent_at?: string | null
-          status?: string | null
-          total_recipients?: number | null
-          updated_at?: string | null
-        }
-        Update: {
-          content?: string
-          created_at?: string | null
-          delivered_count?: number | null
-          id?: string
-          sent_at?: string | null
-          status?: string | null
-          total_recipients?: number | null
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
-      anaji_order_items: {
+      nana_order_items: {
         Row: {
           created_at: string
           food_id: string | null
@@ -577,19 +577,19 @@ export type Database = {
             foreignKeyName: "nana_order_items_food_id_fkey"
             columns: ["food_id"]
             isOneToOne: false
-            referencedRelation: "anaji_foods"
+            referencedRelation: "nana_foods"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "nana_order_items_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
-            referencedRelation: "anaji_orders"
+            referencedRelation: "nana_orders"
             referencedColumns: ["id"]
           },
         ]
       }
-      anaji_orders: {
+      nana_orders: {
         Row: {
           created_at: string
           customer_id: string | null
@@ -643,12 +643,12 @@ export type Database = {
             foreignKeyName: "nana_orders_customer_id_fkey"
             columns: ["customer_id"]
             isOneToOne: false
-            referencedRelation: "anaji_customers"
+            referencedRelation: "nana_customers"
             referencedColumns: ["id"]
           },
         ]
       }
-      anaji_profiles: {
+      nana_profiles: {
         Row: {
           address: string | null
           city: string | null
@@ -681,7 +681,7 @@ export type Database = {
         }
         Relationships: []
       }
-      anaji_sms_campaign_recipients: {
+      sms_campaign_recipients: {
         Row: {
           campaign_id: string | null
           created_at: string
@@ -717,19 +717,19 @@ export type Database = {
             foreignKeyName: "sms_campaign_recipients_campaign_id_fkey"
             columns: ["campaign_id"]
             isOneToOne: false
-            referencedRelation: "anaji_sms_campaigns"
+            referencedRelation: "sms_campaigns"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "sms_campaign_recipients_customer_id_fkey"
             columns: ["customer_id"]
             isOneToOne: false
-            referencedRelation: "anaji_customers"
+            referencedRelation: "nana_customers"
             referencedColumns: ["id"]
           },
         ]
       }
-      anaji_sms_campaigns: {
+      sms_campaigns: {
         Row: {
           content: string
           created_at: string
@@ -771,7 +771,7 @@ export type Database = {
         }
         Relationships: []
       }
-      anaji_sms_templates: {
+      sms_templates: {
         Row: {
           category: string | null
           content: string
