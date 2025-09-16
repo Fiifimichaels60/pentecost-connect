@@ -1,0 +1,171 @@
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { MessageSquare, Users, UserCheck, Calendar, Send, TrendingUp } from "lucide-react"
+import { Link } from "react-router-dom"
+import churchHero from "@/assets/church-hero.jpg"
+
+const Dashboard = () => {
+  const stats = [
+    {
+      title: "Total Members",
+      value: "245",
+      icon: UserCheck,
+      description: "Active members",
+      color: "text-blue-600"
+    },
+    {
+      title: "SMS Sent Today",
+      value: "48",
+      icon: Send,
+      description: "+12 from yesterday",
+      color: "text-green-600"
+    },
+    {
+      title: "Active Groups",
+      value: "8",
+      icon: Users,
+      description: "Ministry groups",
+      color: "text-purple-600"
+    },
+    {
+      title: "This Month",
+      value: "1,249",
+      icon: TrendingUp,
+      description: "Total SMS sent",
+      color: "text-orange-600"
+    }
+  ]
+
+  const quickActions = [
+    {
+      title: "Send Quick SMS",
+      description: "Compose and send SMS to members",
+      icon: MessageSquare,
+      href: "/compose",
+      variant: "default" as const
+    },
+    {
+      title: "Mark Attendance",
+      description: "Create attendance session",
+      icon: Calendar,
+      href: "/attendance",
+      variant: "secondary" as const
+    },
+    {
+      title: "Manage Members",
+      description: "Add or edit member details",
+      icon: UserCheck,
+      href: "/members",
+      variant: "outline" as const
+    }
+  ]
+
+  return (
+    <div className="space-y-8">
+      {/* Hero Section */}
+      <div className="relative overflow-hidden rounded-xl bg-gradient-primary text-white">
+        <div className="absolute inset-0 bg-black/20" />
+        <img 
+          src={churchHero} 
+          alt="Church community"
+          className="absolute inset-0 w-full h-full object-cover mix-blend-overlay"
+        />
+        <div className="relative p-8 md:p-12">
+          <h1 className="text-3xl md:text-4xl font-bold mb-4">
+            Welcome to Church Of Pentecost
+          </h1>
+          <p className="text-xl text-white/90 mb-6 max-w-2xl">
+            Anaji English Assembly SMS Management System
+          </p>
+          <p className="text-white/80 max-w-xl">
+            Stay connected with your congregation through our comprehensive SMS platform. 
+            Send messages, manage members, track attendance, and build stronger community bonds.
+          </p>
+        </div>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {stats.map((stat) => {
+          const Icon = stat.icon
+          return (
+            <Card key={stat.title} className="shadow-elegant">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  {stat.title}
+                </CardTitle>
+                <Icon className={`h-5 w-5 ${stat.color}`} />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-foreground">{stat.value}</div>
+                <p className="text-xs text-muted-foreground">{stat.description}</p>
+              </CardContent>
+            </Card>
+          )
+        })}
+      </div>
+
+      {/* Quick Actions */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {quickActions.map((action) => {
+          const Icon = action.icon
+          return (
+            <Card key={action.title} className="shadow-elegant hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-primary/10 rounded-lg">
+                    <Icon className="h-6 w-6 text-primary" />
+                  </div>
+                  <CardTitle className="text-lg">{action.title}</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-muted-foreground">{action.description}</p>
+                <Button asChild variant={action.variant} className="w-full">
+                  <Link to={action.href}>Get Started</Link>
+                </Button>
+              </CardContent>
+            </Card>
+          )
+        })}
+      </div>
+
+      {/* Recent Activity */}
+      <Card className="shadow-elegant">
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <TrendingUp className="h-5 w-5 text-primary" />
+            <span>Recent Activity</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between py-2 border-b border-border/50">
+              <div>
+                <p className="font-medium">Sunday Service Reminder</p>
+                <p className="text-sm text-muted-foreground">Sent to Youth Ministry - 35 recipients</p>
+              </div>
+              <span className="text-sm text-muted-foreground">2 hours ago</span>
+            </div>
+            <div className="flex items-center justify-between py-2 border-b border-border/50">
+              <div>
+                <p className="font-medium">New Member Added</p>
+                <p className="text-sm text-muted-foreground">John Doe added to Men's Fellowship</p>
+              </div>
+              <span className="text-sm text-muted-foreground">5 hours ago</span>
+            </div>
+            <div className="flex items-center justify-between py-2">
+              <div>
+                <p className="font-medium">Birthday Wishes Sent</p>
+                <p className="text-sm text-muted-foreground">3 birthday messages sent automatically</p>
+              </div>
+              <span className="text-sm text-muted-foreground">1 day ago</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+export default Dashboard
