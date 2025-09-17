@@ -1,40 +1,129 @@
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { MessageSquare, Users, UserCheck, Calendar, Send, TrendingUp } from "lucide-react"
 import { Link } from "react-router-dom"
 import churchHero from "@/assets/church-hero.jpg"
+import { supabase } from "@/integrations/supabase/client"
 
 const Dashboard = () => {
-  const stats = [
+  const [stats, setStats] = useState([
     {
       title: "Total Members",
-      value: "245",
+      value: "0",
       icon: UserCheck,
       description: "Active members",
       color: "text-blue-600"
     },
     {
       title: "SMS Sent Today",
-      value: "48",
+      value: "0",
       icon: Send,
-      description: "+12 from yesterday",
+      description: "Messages today",
       color: "text-green-600"
     },
     {
       title: "Active Groups",
-      value: "8",
+      value: "0",
       icon: Users,
       description: "Ministry groups",
       color: "text-purple-600"
     },
     {
       title: "This Month",
-      value: "1,249",
+      value: "0",
       icon: TrendingUp,
       description: "Total SMS sent",
       color: "text-orange-600"
     }
-  ]
+  ])
+
+  const [recentActivity, setRecentActivity] = useState([])
+
+  useEffect(() => {
+    loadDashboardStats()
+    loadRecentActivity()
+  }, [])
+
+  const loadDashboardStats = async () => {
+    try {
+      // Get member count from nana_profiles
+      const { count: memberCount } = await supabase
+        .from('nana_profiles')
+        .select('*', { count: 'exact', head: true })
+
+      // Get group count from nana_categories
+      const { count: groupCount } = await supabase
+        .from('nana_categories')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_active', true)
+
+      setStats([
+        {
+          title: "Total Members",
+          value: memberCount?.toString() || "0",
+          icon: UserCheck,
+          description: "Active members",
+          color: "text-blue-600"
+        },
+        {
+          title: "SMS Sent Today",
+          value: "0",
+          icon: Send,
+          description: "Messages today",
+          color: "text-green-600"
+        },
+        {
+          title: "Active Groups",
+          value: groupCount?.toString() || "0",
+          icon: Users,
+          description: "Ministry groups",
+          color: "text-purple-600"
+        },
+        {
+          title: "This Month",
+          value: "0",
+          icon: TrendingUp,
+          description: "Total SMS sent",
+          color: "text-orange-600"
+        }
+      ])
+    } catch (error) {
+      console.error('Error loading dashboard stats:', error)
+    }
+  }
+
+  const loadRecentActivity = async () => {
+    try {
+      // Get recent member additions for now
+      const { data: recentMembers } = await supabase
+        .from('nana_profiles')
+        .select('first_name, last_name, created_at')
+        .order('created_at', { ascending: false })
+        .limit(3)
+
+      const formattedActivity = (recentMembers || []).map(member => ({
+        title: "New Member Added",
+        description: `${member.first_name} ${member.last_name} joined the system`,
+        time: formatRelativeTime(member.created_at)
+      }))
+
+      setRecentActivity(formattedActivity)
+    } catch (error) {
+      console.error('Error loading recent activity:', error)
+    }
+  }
+
+  const formatRelativeTime = (timestamp: string) => {
+    const now = new Date()
+    const time = new Date(timestamp)
+    const diffInHours = Math.floor((now.getTime() - time.getTime()) / (1000 * 60 * 60))
+    
+    if (diffInHours < 1) return 'Less than an hour ago'
+    if (diffInHours < 24) return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`
+    const diffInDays = Math.floor(diffInHours / 24)
+    return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`
+  }
 
   const quickActions = [
     {
@@ -140,27 +229,22 @@ const Dashboard = () => {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-3">
-            <div className="flex items-center justify-between py-2 border-b border-border/50">
-              <div>
-                <p className="font-medium">Sunday Service Reminder</p>
-                <p className="text-sm text-muted-foreground">Sent to Youth Ministry - 35 recipients</p>
+            {recentActivity.length > 0 ? (
+              recentActivity.map((activity, index) => (
+                <div key={index} className="flex items-center justify-between py-2 border-b border-border/50 last:border-b-0">
+                  <div>
+                    <p className="font-medium">{activity.title}</p>
+                    <p className="text-sm text-muted-foreground">{activity.description}</p>
+                  </div>
+                  <span className="text-sm text-muted-foreground">{activity.time}</span>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-4">
+                <p className="text-muted-foreground">No recent activity</p>
+                <p className="text-sm text-muted-foreground">Your recent SMS activity will appear here</p>
               </div>
-              <span className="text-sm text-muted-foreground">2 hours ago</span>
-            </div>
-            <div className="flex items-center justify-between py-2 border-b border-border/50">
-              <div>
-                <p className="font-medium">New Member Added</p>
-                <p className="text-sm text-muted-foreground">John Doe added to Men's Fellowship</p>
-              </div>
-              <span className="text-sm text-muted-foreground">5 hours ago</span>
-            </div>
-            <div className="flex items-center justify-between py-2">
-              <div>
-                <p className="font-medium">Birthday Wishes Sent</p>
-                <p className="text-sm text-muted-foreground">3 birthday messages sent automatically</p>
-              </div>
-              <span className="text-sm text-muted-foreground">1 day ago</span>
-            </div>
+            )}
           </div>
         </CardContent>
       </Card>

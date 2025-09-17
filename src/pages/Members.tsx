@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,56 +9,22 @@ import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { UserCheck, Plus, Edit, Trash2, Search, Phone, Mail, Users } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { supabase } from "@/integrations/supabase/client"
 
 interface Member {
   id: string
-  name: string
-  phone: string
+  first_name: string
+  last_name: string
   email: string
-  group: string
-  dateJoined: string
-  status: "active" | "inactive"
+  phone: string
+  created_at: string
+  is_admin: boolean
 }
 
 const Members = () => {
-  const [members, setMembers] = useState<Member[]>([
-    {
-      id: "1",
-      name: "John Doe",
-      phone: "+233 24 123 4567",
-      email: "john.doe@email.com",
-      group: "Men's Fellowship",
-      dateJoined: "2024-01-15",
-      status: "active"
-    },
-    {
-      id: "2",
-      name: "Mary Johnson",
-      phone: "+233 54 987 6543",
-      email: "mary.johnson@email.com",
-      group: "Women's Fellowship",
-      dateJoined: "2024-02-01",
-      status: "active"
-    },
-    {
-      id: "3",
-      name: "David Wilson",
-      phone: "+233 20 555 7890",
-      email: "david.wilson@email.com",
-      group: "Church Choir",
-      dateJoined: "2024-01-20",
-      status: "active"
-    },
-    {
-      id: "4",
-      name: "Sarah Brown",
-      phone: "+233 26 111 2222",
-      email: "sarah.brown@email.com",
-      group: "Youth Ministry",
-      dateJoined: "2024-02-10",
-      status: "inactive"
-    }
-  ])
+  const [members, setMembers] = useState<Member[]>([])
+  const [categories, setCategories] = useState<{id: string, name: string}[]>([])
+  const [loading, setLoading] = useState(true)
 
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedGroup, setSelectedGroup] = useState("all")
@@ -73,89 +39,179 @@ const Members = () => {
 
   const { toast } = useToast()
 
-  const groups = [
-    "Youth Ministry",
-    "Men's Fellowship", 
-    "Women's Fellowship",
-    "Church Choir",
-    "Church Elders",
-    "Ushering Team"
-  ]
+  // Load members and categories from database
+  useEffect(() => {
+    loadMembers()
+    loadCategories()
+  }, [])
+
+  const loadMembers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('nana_profiles')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+
+      setMembers(data || [])
+    } catch (error) {
+      console.error('Error loading members:', error)
+      toast({
+        title: "Error",
+        description: "Failed to load members",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const loadCategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('nana_categories')
+        .select('id, name')
+        .eq('is_active', true)
+        .order('name')
+
+      if (error) throw error
+      setCategories(data || [])
+    } catch (error) {
+      console.error('Error loading categories:', error)
+    }
+  }
 
   const filteredMembers = members.filter(member => {
-    const matchesSearch = member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         member.phone.includes(searchTerm) ||
+    const fullName = `${member.first_name} ${member.last_name}`.toLowerCase()
+    const matchesSearch = fullName.includes(searchTerm.toLowerCase()) ||
+                         (member.phone && member.phone.includes(searchTerm)) ||
                          member.email.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesGroup = selectedGroup === "all" || member.group === selectedGroup
-    return matchesSearch && matchesGroup
+    // For now, ignore group filtering since we don't have group relationships
+    return matchesSearch
   })
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!formData.name.trim() || !formData.phone.trim()) {
+    if (!formData.name.trim() || !formData.email.trim()) {
       toast({
         title: "Missing Information",
-        description: "Please fill in at least name and phone number.",
+        description: "Please fill in at least name and email.",
         variant: "destructive"
       })
       return
     }
 
-    if (editingMember) {
-      // Update existing member
-      setMembers(members.map(member => 
-        member.id === editingMember.id 
-          ? { ...member, ...formData, status: "active" as const }
-          : member
-      ))
-      toast({
-        title: "Member Updated",
-        description: `${formData.name} has been updated successfully.`
-      })
-    } else {
-      // Create new member
-      const newMember: Member = {
-        id: Date.now().toString(),
-        name: formData.name,
-        phone: formData.phone,
-        email: formData.email,
-        group: formData.group,
-        dateJoined: new Date().toISOString().split('T')[0],
-        status: "active"
+    try {
+      if (editingMember) {
+        // Update existing member
+        const [firstName, ...lastNameParts] = formData.name.split(' ')
+        const { error } = await supabase
+          .from('nana_profiles')
+          .update({
+            first_name: firstName,
+            last_name: lastNameParts.join(' '),
+            email: formData.email,
+            phone: formData.phone || null,
+          })
+          .eq('id', editingMember.id)
+
+        if (error) throw error
+
+        toast({
+          title: "Member Updated",
+          description: `${formData.name} has been updated successfully.`
+        })
+      } else {
+        // For new members, they need to sign up through auth
+        toast({
+          title: "Note",
+          description: "New members need to sign up through the authentication system.",
+          variant: "default"
+        })
       }
-      setMembers([...members, newMember])
+
+      // Reload members
+      await loadMembers()
+      
+      // Reset form
+      setFormData({ name: "", phone: "", email: "", group: "" })
+      setEditingMember(null)
+      setIsDialogOpen(false)
+    } catch (error) {
+      console.error('Error saving member:', error)
       toast({
-        title: "Member Added",
-        description: `${formData.name} has been added successfully.`
+        title: "Error",
+        description: "Failed to save member",
+        variant: "destructive"
       })
     }
-
-    // Reset form
-    setFormData({ name: "", phone: "", email: "", group: "" })
-    setEditingMember(null)
-    setIsDialogOpen(false)
   }
 
   const handleEdit = (member: Member) => {
     setEditingMember(member)
     setFormData({
-      name: member.name,
-      phone: member.phone,
+      name: `${member.first_name} ${member.last_name}`,
+      phone: member.phone || '',
       email: member.email,
-      group: member.group
+      group: ''
     })
     setIsDialogOpen(true)
   }
 
-  const handleDelete = (memberId: string) => {
+  const handleDelete = async (memberId: string) => {
     const member = members.find(m => m.id === memberId)
     if (member) {
-      setMembers(members.filter(m => m.id !== memberId))
-      toast({
-        title: "Member Removed",
-        description: `${member.name} has been removed.`
-      })
+      try {
+        const { error } = await supabase
+          .from('nana_profiles')
+          .delete()
+          .eq('id', memberId)
+
+        if (error) throw error
+
+        toast({
+          title: "Member Removed",
+          description: `${member.first_name} ${member.last_name} has been removed.`
+        })
+        
+        await loadMembers()
+      } catch (error) {
+        console.error('Error deleting member:', error)
+        toast({
+          title: "Error",
+          description: "Failed to delete member",
+          variant: "destructive"
+        })
+      }
+    }
+  }
+
+  const toggleStatus = async (memberId: string) => {
+    const member = members.find(m => m.id === memberId)
+    if (member) {
+      try {
+        const { error } = await supabase
+          .from('nana_profiles')
+          .update({ is_admin: !member.is_admin })
+          .eq('id', memberId)
+
+        if (error) throw error
+        
+        await loadMembers()
+        toast({
+          title: "Status Updated",
+          description: "Member status has been updated."
+        })
+      } catch (error) {
+        console.error('Error updating member status:', error)
+        toast({
+          title: "Error",
+          description: "Failed to update member status",
+          variant: "destructive"
+        })
+      }
     }
   }
 
@@ -163,14 +219,6 @@ const Members = () => {
     setEditingMember(null)
     setFormData({ name: "", phone: "", email: "", group: "" })
     setIsDialogOpen(true)
-  }
-
-  const toggleStatus = (memberId: string) => {
-    setMembers(members.map(member => 
-      member.id === memberId 
-        ? { ...member, status: member.status === "active" ? "inactive" : "active" }
-        : member
-    ))
   }
 
   return (
@@ -234,9 +282,9 @@ const Members = () => {
                     <SelectValue placeholder="Select a group" />
                   </SelectTrigger>
                   <SelectContent>
-                    {groups.map((group) => (
-                      <SelectItem key={group} value={group}>
-                        {group}
+                    {categories.map((category) => (
+                      <SelectItem key={category.id} value={category.id}>
+                        {category.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -275,16 +323,16 @@ const Members = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-success">
-              {members.filter(m => m.status === "active").length}
+              {members.length}
             </div>
           </CardContent>
         </Card>
         <Card className="shadow-elegant">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Groups</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Categories</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{groups.length}</div>
+            <div className="text-2xl font-bold">{categories.length}</div>
           </CardContent>
         </Card>
       </div>
@@ -305,10 +353,10 @@ const Members = () => {
             <SelectValue placeholder="Filter by group" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Groups</SelectItem>
-            {groups.map((group) => (
-              <SelectItem key={group} value={group}>
-                {group}
+            <SelectItem value="all">All Categories</SelectItem>
+            {categories.map((category) => (
+              <SelectItem key={category.id} value={category.id}>
+                {category.name}
               </SelectItem>
             ))}
           </SelectContent>
@@ -330,39 +378,45 @@ const Members = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredMembers.map((member) => (
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-8">
+                    Loading members...
+                  </TableCell>
+                </TableRow>
+              ) : filteredMembers.map((member) => (
                 <TableRow key={member.id}>
-                  <TableCell className="font-medium">{member.name}</TableCell>
+                  <TableCell className="font-medium">{member.first_name} {member.last_name}</TableCell>
                   <TableCell>
                     <div className="space-y-1">
-                      <div className="flex items-center space-x-2">
-                        <Phone className="h-3 w-3 text-muted-foreground" />
-                        <span className="text-sm">{member.phone}</span>
-                      </div>
-                      {member.email && (
+                      {member.phone && (
                         <div className="flex items-center space-x-2">
-                          <Mail className="h-3 w-3 text-muted-foreground" />
-                          <span className="text-sm">{member.email}</span>
+                          <Phone className="h-3 w-3 text-muted-foreground" />
+                          <span className="text-sm">{member.phone}</span>
                         </div>
                       )}
+                      <div className="flex items-center space-x-2">
+                        <Mail className="h-3 w-3 text-muted-foreground" />
+                        <span className="text-sm">{member.email}</span>
+                      </div>
                     </div>
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline" className="flex items-center space-x-1">
                       <Users className="h-3 w-3" />
-                      <span>{member.group || "No Group"}</span>
+                      <span>General</span>
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    {new Date(member.dateJoined).toLocaleDateString()}
+                    {new Date(member.created_at).toLocaleDateString()}
                   </TableCell>
                   <TableCell>
                     <Badge 
-                      variant={member.status === "active" ? "default" : "secondary"}
+                      variant={member.is_admin ? "default" : "secondary"}
                       className="cursor-pointer"
                       onClick={() => toggleStatus(member.id)}
                     >
-                      {member.status}
+                      {member.is_admin ? "admin" : "member"}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">

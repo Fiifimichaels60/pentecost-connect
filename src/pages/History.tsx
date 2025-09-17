@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,95 +9,26 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import { History as HistoryIcon, Search, Trash2, Eye, CheckCircle, XCircle, Clock, Filter } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { supabase } from "@/integrations/supabase/client"
 
 interface SMSHistory {
   id: string
   message: string
   recipients: string[]
-  recipientType: "individual" | "group" | "manual"
-  recipientName: string
+  recipient_type: "individual" | "group" | "manual"
+  recipient_name: string
   status: "sent" | "delivered" | "failed" | "pending"
-  sentDate: string
-  sentTime: string
-  deliveredCount: number
-  failedCount: number
-  totalCount: number
+  sent_date: string
+  sent_time: string
+  delivered_count: number
+  failed_count: number
+  recipient_count: number
   cost: number
 }
 
 const History = () => {
-  const [history, setHistory] = useState<SMSHistory[]>([
-    {
-      id: "1",
-      message: "Good morning! Don't forget our Sunday worship service at 9:00 AM. Come and experience God's presence with us. God bless you!",
-      recipients: ["+233 24 123 4567", "+233 54 987 6543"],
-      recipientType: "group",
-      recipientName: "Youth Ministry",
-      status: "delivered",
-      sentDate: "2024-03-17",
-      sentTime: "08:30",
-      deliveredCount: 43,
-      failedCount: 2,
-      totalCount: 45,
-      cost: 4.50
-    },
-    {
-      id: "2",
-      message: "Happy Birthday John! May this special day bring you joy, happiness, and God's abundant blessings. We pray for a wonderful year ahead filled with His grace. 🎉🎂",
-      recipients: ["+233 24 123 4567"],
-      recipientType: "individual",
-      recipientName: "John Doe",
-      status: "delivered",
-      sentDate: "2024-03-15",
-      sentTime: "09:00",
-      deliveredCount: 1,
-      failedCount: 0,
-      totalCount: 1,
-      cost: 0.10
-    },
-    {
-      id: "3",
-      message: "Join us for our midweek prayer meeting tonight at 7:00 PM. Let's come together to seek God's face and pray for our community. Your presence matters!",
-      recipients: ["+233 20 555 7890", "+233 26 111 2222", "+233 55 333 4444"],
-      recipientType: "group",
-      recipientName: "Prayer Warriors",
-      status: "sent",
-      sentDate: "2024-03-14",
-      sentTime: "15:30",
-      deliveredCount: 28,
-      failedCount: 1,
-      totalCount: 29,
-      cost: 2.90
-    },
-    {
-      id: "4",
-      message: "Reminder: Church Annual Conference is scheduled for March 25, 2024 at 9:00 AM. Location: Main Auditorium. Don't miss this blessing! See you there.",
-      recipients: ["+233 24 555 6666"],
-      recipientType: "manual",
-      recipientName: "Manual Recipients",
-      status: "failed",
-      sentDate: "2024-03-13",
-      sentTime: "10:15",
-      deliveredCount: 0,
-      failedCount: 1,
-      totalCount: 1,
-      cost: 0.00
-    },
-    {
-      id: "5",
-      message: "Welcome to Church Of Pentecost, Anaji English Assembly, Sarah! We're thrilled to have you join our church family. May God bless your journey with us.",
-      recipients: ["+233 26 111 2222"],
-      recipientType: "individual",
-      recipientName: "Sarah Brown",
-      status: "pending",
-      sentDate: "2024-03-12",
-      sentTime: "14:45",
-      deliveredCount: 0,
-      failedCount: 0,
-      totalCount: 1,
-      cost: 0.10
-    }
-  ])
+  const [history, setHistory] = useState<SMSHistory[]>([])
+  const [loading, setLoading] = useState(true)
 
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
@@ -107,11 +38,56 @@ const History = () => {
 
   const { toast } = useToast()
 
+  useEffect(() => {
+    loadHistory()
+  }, [])
+
+  const loadHistory = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('anaji_history')
+        .select(`
+          *,
+          anaji_groups(name)
+        `)
+        .order('sent_date', { ascending: false })
+        .order('sent_time', { ascending: false })
+
+      if (error) throw error
+
+      const formattedHistory = (data || []).map(item => ({
+        id: item.id,
+        message: item.message,
+        recipients: item.recipients || [],
+        recipient_type: item.recipient_type,
+        recipient_name: item.anaji_groups?.name || item.recipient_name || 'Unknown',
+        status: item.status,
+        sent_date: item.sent_date,
+        sent_time: item.sent_time,
+        delivered_count: item.delivered_count || 0,
+        failed_count: item.failed_count || 0,
+        recipient_count: item.recipient_count || 0,
+        cost: item.cost || 0
+      }))
+
+      setHistory(formattedHistory)
+    } catch (error) {
+      console.error('Error loading history:', error)
+      toast({
+        title: "Error",
+        description: "Failed to load SMS history",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const filteredHistory = history.filter(item => {
     const matchesSearch = item.message.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         item.recipientName.toLowerCase().includes(searchTerm.toLowerCase())
+                         item.recipient_name.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesStatus = statusFilter === "all" || item.status === statusFilter
-    const matchesType = typeFilter === "all" || item.recipientType === typeFilter
+    const matchesType = typeFilter === "all" || item.recipient_type === typeFilter
     return matchesSearch && matchesStatus && matchesType
   })
 
@@ -131,7 +107,7 @@ const History = () => {
     }
   }
 
-  const handleDeleteSelected = () => {
+  const handleDeleteSelected = async () => {
     if (selectedItems.length === 0) {
       toast({
         title: "No Items Selected",
@@ -141,19 +117,17 @@ const History = () => {
       return
     }
 
-    setHistory(history.filter(item => !selectedItems.includes(item.id)))
-    setSelectedItems([])
+    // For now, just show a message since we don't have the table yet
     toast({
-      title: "Items Deleted",
-      description: `${selectedItems.length} items have been deleted.`
+      title: "Feature Coming Soon",
+      description: "SMS history deletion will be available once the SMS system is fully implemented.",
     })
   }
 
-  const handleDeleteSingle = (itemId: string) => {
-    setHistory(history.filter(item => item.id !== itemId))
+  const handleDeleteSingle = async (itemId: string) => {
     toast({
-      title: "Item Deleted",
-      description: "SMS history item has been deleted."
+      title: "Feature Coming Soon",
+      description: "SMS history deletion will be available once the SMS system is fully implemented.",
     })
   }
 
@@ -188,8 +162,8 @@ const History = () => {
   }
 
   const totalStats = {
-    sent: history.reduce((sum, item) => sum + item.deliveredCount, 0),
-    failed: history.reduce((sum, item) => sum + item.failedCount, 0),
+    sent: history.reduce((sum, item) => sum + item.delivered_count, 0),
+    failed: history.reduce((sum, item) => sum + item.failed_count, 0),
     cost: history.reduce((sum, item) => sum + item.cost, 0)
   }
 
@@ -302,7 +276,13 @@ const History = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredHistory.map((item) => (
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-8">
+                    Loading SMS history...
+                  </TableCell>
+                </TableRow>
+              ) : filteredHistory.map((item) => (
                 <TableRow key={item.id}>
                   <TableCell>
                     <Checkbox
@@ -327,9 +307,9 @@ const History = () => {
                   </TableCell>
                   <TableCell>
                     <div className="space-y-1">
-                      <p className="font-medium">{item.recipientName}</p>
+                      <p className="font-medium">{item.recipient_name}</p>
                       <Badge variant="outline" className="text-xs">
-                        {item.recipientType}
+                        {item.recipient_type}
                       </Badge>
                     </div>
                   </TableCell>
@@ -343,24 +323,24 @@ const History = () => {
                   </TableCell>
                   <TableCell>
                     <div className="space-y-1">
-                      <p className="text-sm">{new Date(item.sentDate).toLocaleDateString()}</p>
-                      <p className="text-xs text-muted-foreground">{item.sentTime}</p>
+                      <p className="text-sm">{new Date(item.sent_date).toLocaleDateString()}</p>
+                      <p className="text-xs text-muted-foreground">{item.sent_time}</p>
                     </div>
                   </TableCell>
                   <TableCell>
                     <div className="space-y-1">
                       <div className="flex items-center space-x-1">
                         <CheckCircle className="h-3 w-3 text-success" />
-                        <span className="text-sm font-medium">{item.deliveredCount}</span>
+                        <span className="text-sm font-medium">{item.delivered_count}</span>
                       </div>
-                      {item.failedCount > 0 && (
+                      {item.failed_count > 0 && (
                         <div className="flex items-center space-x-1">
                           <XCircle className="h-3 w-3 text-destructive" />
-                          <span className="text-sm">{item.failedCount}</span>
+                          <span className="text-sm">{item.failed_count}</span>
                         </div>
                       )}
                       <p className="text-xs text-muted-foreground">
-                        of {item.totalCount}
+                        of {item.recipient_count}
                       </p>
                     </div>
                   </TableCell>
