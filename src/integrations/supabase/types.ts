@@ -195,6 +195,41 @@ export type Database = {
           },
         ]
       }
+      anaji_customer_presence: {
+        Row: {
+          created_at: string
+          customer_id: string
+          id: string
+          is_online: boolean
+          last_seen: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          customer_id: string
+          id?: string
+          is_online?: boolean
+          last_seen?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string
+          id?: string
+          is_online?: boolean
+          last_seen?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anaji_customer_presence_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: true
+            referencedRelation: "anaji_customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       anaji_customers: {
         Row: {
           address: string | null
@@ -397,6 +432,84 @@ export type Database = {
           },
         ]
       }
+      anaji_message_groups: {
+        Row: {
+          created_at: string
+          group_id: string | null
+          id: string
+          message_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          group_id?: string | null
+          id?: string
+          message_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          group_id?: string | null
+          id?: string
+          message_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anaji_message_groups_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "anaji_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anaji_message_groups_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "anaji_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      anaji_message_recipients: {
+        Row: {
+          created_at: string
+          delivered_at: string | null
+          id: string
+          member_id: string | null
+          message_id: string | null
+          status: string | null
+        }
+        Insert: {
+          created_at?: string
+          delivered_at?: string | null
+          id?: string
+          member_id?: string | null
+          message_id?: string | null
+          status?: string | null
+        }
+        Update: {
+          created_at?: string
+          delivered_at?: string | null
+          id?: string
+          member_id?: string | null
+          message_id?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anaji_message_recipients_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "anaji_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anaji_message_recipients_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "anaji_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       anaji_messages: {
         Row: {
           content: string
@@ -566,6 +679,54 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      anaji_sms_campaign_recipients: {
+        Row: {
+          campaign_id: string | null
+          created_at: string
+          customer_id: string | null
+          delivered_at: string | null
+          error_message: string | null
+          id: string
+          phone: string
+          status: string | null
+        }
+        Insert: {
+          campaign_id?: string | null
+          created_at?: string
+          customer_id?: string | null
+          delivered_at?: string | null
+          error_message?: string | null
+          id?: string
+          phone: string
+          status?: string | null
+        }
+        Update: {
+          campaign_id?: string | null
+          created_at?: string
+          customer_id?: string | null
+          delivered_at?: string | null
+          error_message?: string | null
+          id?: string
+          phone?: string
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anaji_sms_campaign_recipients_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "anaji_sms_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anaji_sms_campaign_recipients_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "anaji_customers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       anaji_sms_campaigns: {
         Row: {
