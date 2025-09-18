@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -8,85 +8,69 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Badge } from "@/components/ui/badge"
 import { Users, Plus, Edit, Trash2, Search, UserPlus } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { supabase } from "@/integrations/supabase/client"
 
 interface Group {
   id: string
   name: string
   description: string
   memberCount: number
-  createdDate: string
-  leader: string
+  createdAt: string
 }
 
 const Groups = () => {
-  const [groups, setGroups] = useState<Group[]>([
-    {
-      id: "1",
-      name: "Youth Ministry",
-      description: "Young adults and teenagers ministry group",
-      memberCount: 45,
-      createdDate: "2024-01-15",
-      leader: "Pastor John"
-    },
-    {
-      id: "2",
-      name: "Men's Fellowship",
-      description: "Fellowship for all men in the church",
-      memberCount: 32,
-      createdDate: "2024-01-10",
-      leader: "Elder Smith"
-    },
-    {
-      id: "3",
-      name: "Women's Fellowship",
-      description: "Women's ministry and prayer group",
-      memberCount: 58,
-      createdDate: "2024-01-08",
-      leader: "Deaconess Mary"
-    },
-    {
-      id: "4",
-      name: "Church Choir",
-      description: "Music ministry and praise team",
-      memberCount: 28,
-      createdDate: "2024-02-01",
-      leader: "Musician David"
-    },
-    {
-      id: "5",
-      name: "Church Elders",
-      description: "Church leadership and elders",
-      memberCount: 12,
-      createdDate: "2024-01-01",
-      leader: "Senior Pastor"
-    },
-    {
-      id: "6",
-      name: "Ushering Team",
-      description: "Sunday service ushering ministry",
-      memberCount: 20,
-      createdDate: "2024-01-20",
-      leader: "Head Usher"
-    }
-  ])
-
+  const [groups, setGroups] = useState<Group[]>([])
+  const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingGroup, setEditingGroup] = useState<Group | null>(null)
   const [formData, setFormData] = useState({
     name: "",
-    description: "",
-    leader: ""
+    description: ""
   })
 
   const { toast } = useToast()
+
+  useEffect(() => {
+    loadGroups()
+  }, [])
+
+  const loadGroups = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('anaji_groups')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+
+      const formattedGroups = (data || []).map(group => ({
+        id: group.id,
+        name: group.name,
+        description: group.description || 'No description',
+        memberCount: group.member_count,
+        createdAt: group.created_at
+      }))
+
+      setGroups(formattedGroups)
+    } catch (error) {
+      console.error('Error loading groups:', error)
+      toast({
+        title: "Error",
+        description: "Failed to load groups",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const filteredGroups = groups.filter(group =>
     group.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     group.description.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
     if (!formData.name.trim()) {
@@ -98,64 +82,98 @@ const Groups = () => {
       return
     }
 
-    if (editingGroup) {
-      // Update existing group
-      setGroups(groups.map(group => 
-        group.id === editingGroup.id 
-          ? { ...group, ...formData }
-          : group
-      ))
-      toast({
-        title: "Group Updated",
-        description: `${formData.name} has been updated successfully.`
-      })
-    } else {
-      // Create new group
-      const newGroup: Group = {
-        id: Date.now().toString(),
-        name: formData.name,
-        description: formData.description,
-        leader: formData.leader,
-        memberCount: 0,
-        createdDate: new Date().toISOString().split('T')[0]
+    try {
+      if (editingGroup) {
+        // Update existing group
+        const { error } = await supabase
+          .from('anaji_groups')
+          .update({
+            name: formData.name,
+            description: formData.description
+          })
+          .eq('id', editingGroup.id)
+
+        if (error) throw error
+
+        toast({
+          title: "Group Updated",
+          description: `${formData.name} has been updated successfully.`
+        })
+      } else {
+        // Create new group
+        const { error } = await supabase
+          .from('anaji_groups')
+          .insert({
+            name: formData.name,
+            description: formData.description,
+            member_count: 0
+          })
+
+        if (error) throw error
+
+        toast({
+          title: "Group Created",
+          description: `${formData.name} has been created successfully.`
+        })
       }
-      setGroups([...groups, newGroup])
+
+      // Reload groups
+      await loadGroups()
+      
+      // Reset form
+      setFormData({ name: "", description: "" })
+      setEditingGroup(null)
+      setIsDialogOpen(false)
+    } catch (error) {
+      console.error('Error saving group:', error)
       toast({
-        title: "Group Created",
-        description: `${formData.name} has been created successfully.`
+        title: "Error",
+        description: "Failed to save group",
+        variant: "destructive"
       })
     }
-
-    // Reset form
-    setFormData({ name: "", description: "", leader: "" })
-    setEditingGroup(null)
-    setIsDialogOpen(false)
   }
 
   const handleEdit = (group: Group) => {
     setEditingGroup(group)
     setFormData({
       name: group.name,
-      description: group.description,
-      leader: group.leader
+      description: group.description
     })
     setIsDialogOpen(true)
   }
 
-  const handleDelete = (groupId: string) => {
+  const handleDelete = async (groupId: string) => {
     const group = groups.find(g => g.id === groupId)
     if (group) {
-      setGroups(groups.filter(g => g.id !== groupId))
-      toast({
-        title: "Group Deleted",
-        description: `${group.name} has been deleted.`
-      })
+      try {
+        const { error } = await supabase
+          .from('anaji_groups')
+          .delete()
+          .eq('id', groupId)
+
+        if (error) throw error
+
+        toast({
+          title: "Group Deleted",
+          description: `${group.name} has been deleted.`
+        })
+        
+        await loadGroups()
+      } catch (error) {
+        console.error('Error deleting group:', error)
+        toast({
+          title: "Error",
+          description: "Failed to delete group",
+          variant: "destructive"
+        })
+      }
     }
   }
 
   const handleNewGroup = () => {
     setEditingGroup(null)
-    setFormData({ name: "", description: "", leader: "" })
+    setFormData({ name: "", description: "" })
     setIsDialogOpen(true)
   }
 
@@ -199,15 +217,6 @@ const Groups = () => {
                   placeholder="Enter group description"
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="leader">Group Leader</Label>
-                <Input
-                  id="leader"
-                  value={formData.leader}
-                  onChange={(e) => setFormData({...formData, leader: e.target.value})}
-                  placeholder="Enter leader name"
-                />
-              </div>
               <div className="flex space-x-2 pt-4">
                 <Button type="submit" className="flex-1">
                   {editingGroup ? "Update Group" : "Create Group"}
@@ -238,7 +247,11 @@ const Groups = () => {
 
       {/* Groups Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredGroups.map((group) => (
+        {loading ? (
+          <div className="col-span-full text-center py-8">
+            Loading groups...
+          </div>
+        ) : filteredGroups.map((group) => (
           <Card key={group.id} className="shadow-elegant hover:shadow-lg transition-shadow">
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between">
@@ -255,13 +268,9 @@ const Groups = () => {
               
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Leader:</span>
-                  <span className="font-medium">{group.leader || "Not assigned"}</span>
-                </div>
-                <div className="flex justify-between">
                   <span className="text-muted-foreground">Created:</span>
                   <span className="font-medium">
-                    {new Date(group.createdDate).toLocaleDateString()}
+                    {new Date(group.createdAt).toLocaleDateString()}
                   </span>
                 </div>
               </div>
@@ -298,7 +307,7 @@ const Groups = () => {
         ))}
       </div>
 
-      {filteredGroups.length === 0 && (
+      {filteredGroups.length === 0 && !loading && (
         <div className="text-center py-12">
           <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
           <h3 className="text-lg font-medium mb-2">No Groups Found</h3>

@@ -44,33 +44,8 @@ const History = () => {
 
   const loadHistory = async () => {
     try {
-      const { data, error } = await supabase
-        .from('anaji_history')
-        .select(`
-          *,
-          anaji_groups(name)
-        `)
-        .order('sent_date', { ascending: false })
-        .order('sent_time', { ascending: false })
-
-      if (error) throw error
-
-      const formattedHistory = (data || []).map(item => ({
-        id: item.id,
-        message: item.message,
-        recipients: item.recipients || [],
-        recipient_type: item.recipient_type,
-        recipient_name: item.anaji_groups?.name || item.recipient_name || 'Unknown',
-        status: item.status,
-        sent_date: item.sent_date,
-        sent_time: item.sent_time,
-        delivered_count: item.delivered_count || 0,
-        failed_count: item.failed_count || 0,
-        recipient_count: item.recipient_count || 0,
-        cost: item.cost || 0
-      }))
-
-      setHistory(formattedHistory)
+      // For now, return empty history since tables are newly created
+      setHistory([])
     } catch (error) {
       console.error('Error loading history:', error)
       toast({
@@ -117,7 +92,6 @@ const History = () => {
       return
     }
 
-    // For now, just show a message since we don't have the table yet
     toast({
       title: "Feature Coming Soon",
       description: "SMS history deletion will be available once the SMS system is fully implemented.",
@@ -431,9 +405,9 @@ const History = () => {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label className="text-sm font-medium text-muted-foreground">Recipient</Label>
-                      <p className="mt-1 font-medium">{item.recipientName}</p>
+                      <p className="mt-1 font-medium">{item.recipient_name}</p>
                       <Badge variant="outline" className="mt-1">
-                        {item.recipientType}
+                        {item.recipient_type}
                       </Badge>
                     </div>
                     <div>
@@ -450,11 +424,11 @@ const History = () => {
                   <div className="grid grid-cols-3 gap-4">
                     <div>
                       <Label className="text-sm font-medium text-muted-foreground">Delivered</Label>
-                      <p className="mt-1 text-lg font-bold text-success">{item.deliveredCount}</p>
+                      <p className="mt-1 text-lg font-bold text-success">{item.delivered_count}</p>
                     </div>
                     <div>
                       <Label className="text-sm font-medium text-muted-foreground">Failed</Label>
-                      <p className="mt-1 text-lg font-bold text-destructive">{item.failedCount}</p>
+                      <p className="mt-1 text-lg font-bold text-destructive">{item.failed_count}</p>
                     </div>
                     <div>
                       <Label className="text-sm font-medium text-muted-foreground">Cost</Label>

@@ -14,6 +14,139 @@ export type Database = {
   }
   public: {
     Tables: {
+      anaji_groups: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          member_count: number
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          member_count?: number
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          member_count?: number
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      anaji_history: {
+        Row: {
+          cost: number
+          created_at: string
+          delivered_count: number
+          failed_count: number
+          group_id: string | null
+          id: string
+          message: string
+          recipient_count: number
+          recipient_name: string
+          recipient_type: string
+          recipients: string[] | null
+          sent_date: string
+          sent_time: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          cost?: number
+          created_at?: string
+          delivered_count?: number
+          failed_count?: number
+          group_id?: string | null
+          id?: string
+          message: string
+          recipient_count?: number
+          recipient_name: string
+          recipient_type: string
+          recipients?: string[] | null
+          sent_date?: string
+          sent_time?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          cost?: number
+          created_at?: string
+          delivered_count?: number
+          failed_count?: number
+          group_id?: string | null
+          id?: string
+          message?: string
+          recipient_count?: number
+          recipient_name?: string
+          recipient_type?: string
+          recipients?: string[] | null
+          sent_date?: string
+          sent_time?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anaji_history_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "anaji_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      anaji_members: {
+        Row: {
+          created_at: string
+          date_of_birth: string | null
+          email: string | null
+          group_id: string | null
+          id: string
+          name: string
+          phone: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date_of_birth?: string | null
+          email?: string | null
+          group_id?: string | null
+          id?: string
+          name: string
+          phone: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date_of_birth?: string | null
+          email?: string | null
+          group_id?: string | null
+          id?: string
+          name?: string
+          phone?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anaji_members_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "anaji_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       categories: {
         Row: {
           created_at: string

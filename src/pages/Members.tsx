@@ -48,13 +48,26 @@ const Members = () => {
   const loadMembers = async () => {
     try {
       const { data, error } = await supabase
-        .from('nana_profiles')
-        .select('*')
+        .from('anaji_members')
+        .select(`
+          *,
+          anaji_groups(name)
+        `)
         .order('created_at', { ascending: false })
 
       if (error) throw error
 
-      setMembers(data || [])
+      const formattedMembers = (data || []).map(member => ({
+        id: member.id,
+        first_name: member.name.split(' ')[0] || member.name,
+        last_name: member.name.split(' ').slice(1).join(' ') || '',
+        email: member.email || 'N/A',
+        phone: member.phone,
+        created_at: member.created_at,
+        is_admin: false
+      }))
+
+      setMembers(formattedMembers)
     } catch (error) {
       console.error('Error loading members:', error)
       toast({
@@ -70,9 +83,8 @@ const Members = () => {
   const loadCategories = async () => {
     try {
       const { data, error } = await supabase
-        .from('nana_categories')
+        .from('anaji_groups')
         .select('id, name')
-        .eq('is_active', true)
         .order('name')
 
       if (error) throw error
