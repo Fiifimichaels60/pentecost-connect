@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -8,63 +8,26 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Switch } from "@/components/ui/switch"
-import { Cake, Plus, Edit, Trash2, Search, Gift, Send, Calendar } from "lucide-react"
+import { Cake, Plus, Edit, Trash2, Search, Gift, Send, Calendar, MapPin } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { supabase } from "@/integrations/supabase/client"
 
 interface Birthday {
   id: string
   name: string
   phone: string
+  email?: string
   birthDate: string
+  location?: string
   group: string
   autoSend: boolean
   lastSent?: string
 }
 
 const Birthday = () => {
-  const [birthdays, setBirthdays] = useState<Birthday[]>([
-    {
-      id: "1",
-      name: "John Doe",
-      phone: "+233 24 123 4567",
-      birthDate: "1985-03-20",
-      group: "Men's Fellowship",
-      autoSend: true,
-      lastSent: "2024-03-20"
-    },
-    {
-      id: "2",
-      name: "Mary Johnson",
-      phone: "+233 54 987 6543",
-      birthDate: "1990-03-25",
-      group: "Women's Fellowship",
-      autoSend: true
-    },
-    {
-      id: "3",
-      name: "David Wilson",
-      phone: "+233 20 555 7890",
-      birthDate: "1992-04-15",
-      group: "Church Choir",
-      autoSend: false
-    },
-    {
-      id: "4",
-      name: "Sarah Brown",
-      phone: "+233 26 111 2222",
-      birthDate: "1995-04-18",
-      group: "Youth Ministry",
-      autoSend: true
-    },
-    {
-      id: "5",
-      name: "Michael Davis",
-      phone: "+233 55 333 4444",
-      birthDate: "1988-03-22",
-      group: "Ushering Team",
-      autoSend: true
-    }
-  ])
+  const [birthdays, setBirthdays] = useState<Birthday[]>([])
+  const [groups, setGroups] = useState<{id: string, name: string}[]>([])
+  const [loading, setLoading] = useState(true)
 
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedMonth, setSelectedMonth] = useState("all")
@@ -73,26 +36,71 @@ const Birthday = () => {
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
+    email: "",
     birthDate: "",
+    location: "",
     group: "",
     autoSend: true
   })
 
   const { toast } = useToast()
 
-  const groups = [
-    "Youth Ministry",
-    "Men's Fellowship", 
-    "Women's Fellowship",
-    "Church Choir",
-    "Church Elders",
-    "Ushering Team"
-  ]
-
   const months = [
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December"
   ]
+
+  useEffect(() => {
+    loadBirthdaysAndGroups()
+  }, [])
+
+  const loadBirthdaysAndGroups = async () => {
+    try {
+      // Load members with birthdays from anaji_members
+      const { data: membersData, error: membersError } = await supabase
+        .from('anaji_members')
+        .select(`
+          *,
+          anaji_groups(name)
+        `)
+        .not('date_of_birth', 'is', null)
+        .order('date_of_birth')
+
+      if (membersError) throw membersError
+
+      // Load groups
+      const { data: groupsData, error: groupsError } = await supabase
+        .from('anaji_groups')
+        .select('id, name')
+        .order('name')
+
+      if (groupsError) throw groupsError
+
+      const formattedBirthdays = (membersData || []).map(member => ({
+        id: member.id,
+        name: member.name,
+        phone: member.phone,
+        email: member.email,
+        birthDate: member.date_of_birth,
+        location: member.location,
+        group: (member as any).anaji_groups?.name || 'No Group',
+        autoSend: true, // Default to auto-send for now
+        lastSent: undefined
+      }))
+
+      setBirthdays(formattedBirthdays)
+      setGroups(groupsData || [])
+    } catch (error) {
+      console.error('Error loading birthdays:', error)
+      toast({
+        title: "Error",
+        description: "Failed to load birthday data",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const getUpcomingBirthdays = () => {
     const today = new Date()
@@ -133,7 +141,7 @@ const Birthday = () => {
     return matchesSearch && matchesMonth
   })
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
     if (!formData.name.trim() || !formData.phone.trim() || !formData.birthDate) {
@@ -145,38 +153,63 @@ const Birthday = () => {
       return
     }
 
-    if (editingBirthday) {
-      // Update existing birthday
-      setBirthdays(birthdays.map(birthday => 
-        birthday.id === editingBirthday.id 
-          ? { ...birthday, ...formData }
-          : birthday
-      ))
-      toast({
-        title: "Birthday Updated",
-        description: `${formData.name}'s birthday has been updated.`
-      })
-    } else {
-      // Create new birthday
-      const newBirthday: Birthday = {
-        id: Date.now().toString(),
-        name: formData.name,
-        phone: formData.phone,
-        birthDate: formData.birthDate,
-        group: formData.group,
-        autoSend: formData.autoSend
+    try {
+      if (editingBirthday) {
+        // Update existing member's birthday info
+        const { error } = await supabase
+          .from('anaji_members')
+          .update({
+            name: formData.name,
+            phone: formData.phone,
+            email: formData.email || null,
+            date_of_birth: formData.birthDate,
+            location: formData.location || null,
+            group_id: formData.group || null
+          })
+          .eq('id', editingBirthday.id)
+
+        if (error) throw error
+
+        toast({
+          title: "Birthday Updated",
+          description: `${formData.name}'s birthday has been updated.`
+        })
+      } else {
+        // Create new member with birthday
+        const { error } = await supabase
+          .from('anaji_members')
+          .insert({
+            name: formData.name,
+            phone: formData.phone,
+            email: formData.email || null,
+            date_of_birth: formData.birthDate,
+            location: formData.location || null,
+            group_id: formData.group || null
+          })
+
+        if (error) throw error
+
+        toast({
+          title: "Birthday Added",
+          description: `${formData.name}'s birthday has been added.`
+        })
       }
-      setBirthdays([...birthdays, newBirthday])
+
+      // Reload data
+      await loadBirthdaysAndGroups()
+      
+      // Reset form
+      setFormData({ name: "", phone: "", email: "", birthDate: "", location: "", group: "", autoSend: true })
+      setEditingBirthday(null)
+      setIsDialogOpen(false)
+    } catch (error) {
+      console.error('Error saving birthday:', error)
       toast({
-        title: "Birthday Added",
-        description: `${formData.name}'s birthday has been added.`
+        title: "Error",
+        description: "Failed to save birthday",
+        variant: "destructive"
       })
     }
-
-    // Reset form
-    setFormData({ name: "", phone: "", birthDate: "", group: "", autoSend: true })
-    setEditingBirthday(null)
-    setIsDialogOpen(false)
   }
 
   const handleEdit = (birthday: Birthday) => {
@@ -184,49 +217,56 @@ const Birthday = () => {
     setFormData({
       name: birthday.name,
       phone: birthday.phone,
+      email: birthday.email || "",
       birthDate: birthday.birthDate,
-      group: birthday.group,
+      location: birthday.location || "",
+      group: "",
       autoSend: birthday.autoSend
     })
     setIsDialogOpen(true)
   }
 
-  const handleDelete = (birthdayId: string) => {
+  const handleDelete = async (birthdayId: string) => {
     const birthday = birthdays.find(b => b.id === birthdayId)
     if (birthday) {
-      setBirthdays(birthdays.filter(b => b.id !== birthdayId))
-      toast({
-        title: "Birthday Removed",
-        description: `${birthday.name}'s birthday has been removed.`
-      })
+      try {
+        const { error } = await supabase
+          .from('anaji_members')
+          .delete()
+          .eq('id', birthdayId)
+
+        if (error) throw error
+
+        toast({
+          title: "Member Removed",
+          description: `${birthday.name} has been removed.`
+        })
+        
+        await loadBirthdaysAndGroups()
+      } catch (error) {
+        console.error('Error deleting member:', error)
+        toast({
+          title: "Error",
+          description: "Failed to delete member",
+          variant: "destructive"
+        })
+      }
     }
   }
 
   const handleNewBirthday = () => {
     setEditingBirthday(null)
-    setFormData({ name: "", phone: "", birthDate: "", group: "", autoSend: true })
+    setFormData({ name: "", phone: "", email: "", birthDate: "", location: "", group: "", autoSend: true })
     setIsDialogOpen(true)
-  }
-
-  const toggleAutoSend = (birthdayId: string) => {
-    setBirthdays(birthdays.map(birthday => 
-      birthday.id === birthdayId 
-        ? { ...birthday, autoSend: !birthday.autoSend }
-        : birthday
-    ))
   }
 
   const sendBirthdayWish = (birthdayId: string) => {
     const birthday = birthdays.find(b => b.id === birthdayId)
     if (birthday) {
-      setBirthdays(birthdays.map(b => 
-        b.id === birthdayId 
-          ? { ...b, lastSent: new Date().toISOString().split('T')[0] }
-          : b
-      ))
+      // In a real app, this would send an SMS via the SMS service
       toast({
         title: "Birthday Wish Sent!",
-        description: `Birthday message sent to ${birthday.name}.`
+        description: `Birthday message sent to ${birthday.name} at ${birthday.phone}.`,
       })
     }
   }
@@ -248,7 +288,7 @@ const Birthday = () => {
               Add Birthday
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>
                 {editingBirthday ? "Edit Birthday" : "Add New Birthday"}
@@ -276,6 +316,16 @@ const Birthday = () => {
                 />
               </div>
               <div className="space-y-2">
+                <Label htmlFor="email">Email (Optional)</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({...formData, email: e.target.value})}
+                  placeholder="Enter email address"
+                />
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="birthDate">Birth Date</Label>
                 <Input
                   id="birthDate"
@@ -283,6 +333,15 @@ const Birthday = () => {
                   value={formData.birthDate}
                   onChange={(e) => setFormData({...formData, birthDate: e.target.value})}
                   required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="location">Location</Label>
+                <Input
+                  id="location"
+                  value={formData.location}
+                  onChange={(e) => setFormData({...formData, location: e.target.value})}
+                  placeholder="Enter location/address"
                 />
               </div>
               <div className="space-y-2">
@@ -296,8 +355,8 @@ const Birthday = () => {
                   </SelectTrigger>
                   <SelectContent>
                     {groups.map((group) => (
-                      <SelectItem key={group} value={group}>
-                        {group}
+                      <SelectItem key={group.id} value={group.id}>
+                        {group.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -328,6 +387,58 @@ const Birthday = () => {
         </Dialog>
       </div>
 
+      {/* Alert for Upcoming Birthdays */}
+      {upcomingBirthdays.length > 0 && (
+        <Card className="shadow-elegant border-l-4 border-l-secondary-gold bg-secondary-gold/5">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2 text-secondary-gold">
+              <Gift className="h-5 w-5" />
+              <span>🎉 Upcoming Birthdays Alert!</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm mb-3">
+              {upcomingBirthdays.length} member{upcomingBirthdays.length > 1 ? 's' : ''} {upcomingBirthdays.length > 1 ? 'have' : 'has'} birthdays in the next 7 days:
+            </p>
+            <div className="space-y-2">
+              {upcomingBirthdays.map((birthday) => {
+                const birthDate = new Date(birthday.birthDate)
+                const thisYear = new Date().getFullYear()
+                const thisYearBirthday = new Date(thisYear, birthDate.getMonth(), birthDate.getDate())
+                const age = thisYear - birthDate.getFullYear()
+                const today = new Date()
+                const daysUntil = Math.ceil((thisYearBirthday.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+                
+                return (
+                  <div key={birthday.id} className="flex items-center justify-between p-3 bg-background rounded-lg border">
+                    <div>
+                      <p className="font-medium">{birthday.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {daysUntil === 0 ? 'Today' : daysUntil === 1 ? 'Tomorrow' : `In ${daysUntil} days`} • Turning {age} • {birthday.group}
+                      </p>
+                      {birthday.location && (
+                        <p className="text-xs text-muted-foreground flex items-center mt-1">
+                          <MapPin className="h-3 w-3 mr-1" />
+                          {birthday.location}
+                        </p>
+                      )}
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => sendBirthdayWish(birthday.id)}
+                    >
+                      <Send className="h-3 w-3 mr-1" />
+                      Send Wish
+                    </Button>
+                  </div>
+                )
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Stats and Today's Birthdays */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="shadow-elegant">
@@ -356,7 +467,9 @@ const Birthday = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {todayBirthdays.length > 0 ? (
+            {loading ? (
+              <p className="text-muted-foreground text-sm">Loading...</p>
+            ) : todayBirthdays.length > 0 ? (
               <div className="space-y-3">
                 {todayBirthdays.map((birthday) => (
                   <div key={birthday.id} className="flex items-center justify-between">
@@ -367,10 +480,9 @@ const Birthday = () => {
                     <Button
                       size="sm"
                       onClick={() => sendBirthdayWish(birthday.id)}
-                      disabled={birthday.lastSent === new Date().toISOString().split('T')[0]}
                     >
                       <Send className="h-3 w-3 mr-1" />
-                      {birthday.lastSent === new Date().toISOString().split('T')[0] ? "Sent" : "Send"}
+                      Send
                     </Button>
                   </div>
                 ))}
@@ -381,43 +493,6 @@ const Birthday = () => {
           </CardContent>
         </Card>
       </div>
-
-      {/* Upcoming Birthdays */}
-      {upcomingBirthdays.length > 0 && (
-        <Card className="shadow-elegant">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Calendar className="h-5 w-5 text-primary" />
-              <span>Upcoming Birthdays (Next 7 Days)</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {upcomingBirthdays.map((birthday) => {
-                const birthDate = new Date(birthday.birthDate)
-                const thisYear = new Date().getFullYear()
-                const thisYearBirthday = new Date(thisYear, birthDate.getMonth(), birthDate.getDate())
-                const age = thisYear - birthDate.getFullYear()
-                
-                return (
-                  <div key={birthday.id} className="flex items-center justify-between p-3 border border-border rounded-lg">
-                    <div>
-                      <p className="font-medium">{birthday.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {thisYearBirthday.toLocaleDateString()} • Turning {age}
-                      </p>
-                      <p className="text-xs text-muted-foreground">{birthday.group}</p>
-                    </div>
-                    <Badge variant={birthday.autoSend ? "default" : "secondary"}>
-                      {birthday.autoSend ? "Auto" : "Manual"}
-                    </Badge>
-                  </div>
-                )
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
@@ -451,16 +526,21 @@ const Birthday = () => {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
+                <TableHead>Member</TableHead>
                 <TableHead>Birth Date</TableHead>
+                <TableHead>Contact</TableHead>
                 <TableHead>Group</TableHead>
-                <TableHead>Auto Send</TableHead>
-                <TableHead>Last Sent</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredBirthdays.map((birthday) => {
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8">
+                    Loading birthdays...
+                  </TableCell>
+                </TableRow>
+              ) : filteredBirthdays.map((birthday) => {
                 const birthDate = new Date(birthday.birthDate)
                 const age = new Date().getFullYear() - birthDate.getFullYear()
                 
@@ -469,7 +549,12 @@ const Birthday = () => {
                     <TableCell>
                       <div>
                         <p className="font-medium">{birthday.name}</p>
-                        <p className="text-sm text-muted-foreground">{birthday.phone}</p>
+                        {birthday.location && (
+                          <p className="text-xs text-muted-foreground flex items-center">
+                            <MapPin className="h-3 w-3 mr-1" />
+                            {birthday.location}
+                          </p>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>
@@ -479,32 +564,18 @@ const Birthday = () => {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline">{birthday.group || "No Group"}</Badge>
+                      <div className="space-y-1">
+                        <p className="text-sm">{birthday.phone}</p>
+                        {birthday.email && (
+                          <p className="text-xs text-muted-foreground">{birthday.email}</p>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
-                      <Switch
-                        checked={birthday.autoSend}
-                        onCheckedChange={() => toggleAutoSend(birthday.id)}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      {birthday.lastSent ? (
-                        <span className="text-sm text-muted-foreground">
-                          {new Date(birthday.lastSent).toLocaleDateString()}
-                        </span>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">Never</span>
-                      )}
+                      <Badge variant="outline">{birthday.group}</Badge>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end space-x-2">
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => sendBirthdayWish(birthday.id)}
-                        >
-                          <Send className="h-4 w-4" />
-                        </Button>
                         <Button 
                           variant="ghost" 
                           size="sm"
@@ -528,14 +599,14 @@ const Birthday = () => {
             </TableBody>
           </Table>
           
-          {filteredBirthdays.length === 0 && (
+          {filteredBirthdays.length === 0 && !loading && (
             <div className="text-center py-12">
               <Cake className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-medium mb-2">No Birthdays Found</h3>
               <p className="text-muted-foreground mb-4">
                 {searchTerm || selectedMonth !== "all" 
                   ? "Try adjusting your filters" 
-                  : "Get started by adding birthday information for your members"
+                  : "Get started by adding birthdays for your members"
                 }
               </p>
               {!searchTerm && selectedMonth === "all" && (

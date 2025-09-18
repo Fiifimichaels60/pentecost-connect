@@ -7,7 +7,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { UserCheck, Plus, Edit, Trash2, Search, Phone, Mail, Users } from "lucide-react"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { UserCheck, Plus, Edit, Trash2, Search, Phone, Mail, Users, CalendarIcon, MapPin } from "lucide-react"
+import { format } from "date-fns"
+import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 
@@ -34,7 +38,9 @@ const Members = () => {
     name: "",
     phone: "",
     email: "",
-    group: ""
+    group: "",
+    location: "",
+    dateOfBirth: undefined as Date | undefined
   })
 
   const { toast } = useToast()
@@ -106,10 +112,10 @@ const Members = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!formData.name.trim() || !formData.email.trim()) {
+    if (!formData.name.trim() || !formData.phone.trim()) {
       toast({
         title: "Missing Information",
-        description: "Please fill in at least name and email.",
+        description: "Please fill in at least name and phone number.",
         variant: "destructive"
       })
       return
@@ -117,15 +123,16 @@ const Members = () => {
 
     try {
       if (editingMember) {
-        // Update existing member
-        const [firstName, ...lastNameParts] = formData.name.split(' ')
+        // Update existing member in anaji_members table
         const { error } = await supabase
-          .from('nana_profiles')
+          .from('anaji_members')
           .update({
-            first_name: firstName,
-            last_name: lastNameParts.join(' '),
-            email: formData.email,
-            phone: formData.phone || null,
+            name: formData.name,
+            phone: formData.phone,
+            email: formData.email || null,
+            group_id: formData.group || null,
+            location: formData.location || null,
+            date_of_birth: formData.dateOfBirth?.toISOString().split('T')[0] || null,
           })
           .eq('id', editingMember.id)
 
@@ -136,11 +143,23 @@ const Members = () => {
           description: `${formData.name} has been updated successfully.`
         })
       } else {
-        // For new members, they need to sign up through auth
+        // Create new member in anaji_members table
+        const { error } = await supabase
+          .from('anaji_members')
+          .insert({
+            name: formData.name,
+            phone: formData.phone,
+            email: formData.email || null,
+            group_id: formData.group || null,
+            location: formData.location || null,
+            date_of_birth: formData.dateOfBirth?.toISOString().split('T')[0] || null,
+          })
+
+        if (error) throw error
+
         toast({
-          title: "Note",
-          description: "New members need to sign up through the authentication system.",
-          variant: "default"
+          title: "Member Added",
+          description: `${formData.name} has been added successfully.`
         })
       }
 
@@ -148,7 +167,7 @@ const Members = () => {
       await loadMembers()
       
       // Reset form
-      setFormData({ name: "", phone: "", email: "", group: "" })
+      setFormData({ name: "", phone: "", email: "", group: "", location: "", dateOfBirth: undefined })
       setEditingMember(null)
       setIsDialogOpen(false)
     } catch (error) {
@@ -167,7 +186,9 @@ const Members = () => {
       name: `${member.first_name} ${member.last_name}`,
       phone: member.phone || '',
       email: member.email,
-      group: ''
+      group: '',
+      location: '',
+      dateOfBirth: undefined
     })
     setIsDialogOpen(true)
   }
@@ -229,7 +250,7 @@ const Members = () => {
 
   const handleNewMember = () => {
     setEditingMember(null)
-    setFormData({ name: "", phone: "", email: "", group: "" })
+    setFormData({ name: "", phone: "", email: "", group: "", location: "", dateOfBirth: undefined })
     setIsDialogOpen(true)
   }
 
@@ -301,6 +322,44 @@ const Members = () => {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="location">Location</Label>
+                <Input
+                  id="location"
+                  value={formData.location}
+                  onChange={(e) => setFormData({...formData, location: e.target.value})}
+                  placeholder="Enter location/address"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Date of Birth</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !formData.dateOfBirth && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {formData.dateOfBirth ? format(formData.dateOfBirth, "PPP") : <span>Pick a date</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={formData.dateOfBirth}
+                      onSelect={(date) => setFormData({...formData, dateOfBirth: date})}
+                      disabled={(date) =>
+                        date > new Date() || date < new Date("1900-01-01")
+                      }
+                      initialFocus
+                      className={cn("p-3 pointer-events-auto")}
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
               <div className="flex space-x-2 pt-4">
                 <Button type="submit" className="flex-1">

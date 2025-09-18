@@ -110,6 +110,7 @@ export type Database = {
           email: string | null
           group_id: string | null
           id: string
+          location: string | null
           name: string
           phone: string
           status: string
@@ -121,6 +122,7 @@ export type Database = {
           email?: string | null
           group_id?: string | null
           id?: string
+          location?: string | null
           name: string
           phone: string
           status?: string
@@ -132,6 +134,7 @@ export type Database = {
           email?: string | null
           group_id?: string | null
           id?: string
+          location?: string | null
           name?: string
           phone?: string
           status?: string
