@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Settings as SettingsIcon, Moon, Sun, Key, Save, Eye, EyeOff } from "lucide-react"
 import { useTheme } from "@/components/theme-provider"
 import { useToast } from "@/hooks/use-toast"
+import { supabase } from "@/integrations/supabase/client"
 
 const Settings = () => {
   const { theme, setTheme } = useTheme()
@@ -30,7 +31,97 @@ const Settings = () => {
     errorAlerts: true
   })
 
-  const handleApiSave = () => {
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+
+  // Load settings from database
+  useEffect(() => {
+    loadSettings()
+  }, [])
+
+  const loadSettings = async () => {
+    try {
+      const { data: settings, error } = await supabase
+        .from('nana_settings')
+        .select('*')
+        .in('key', [
+          'hubtel_client_id', 
+          'hubtel_client_secret', 
+          'hubtel_sender_id',
+          'email_notifications',
+          'sms_delivery_reports',
+          'daily_reports',
+          'error_alerts'
+        ])
+
+      if (error) throw error
+
+      const settingsMap = settings?.reduce((acc, setting) => {
+        acc[setting.key] = setting.value
+        return acc
+      }, {} as Record<string, string>) || {}
+
+      setApiSettings({
+        clientId: settingsMap.hubtel_client_id || "",
+        clientSecret: settingsMap.hubtel_client_secret || "",
+        senderId: settingsMap.hubtel_sender_id || ""
+      })
+
+      setNotificationSettings({
+        emailNotifications: settingsMap.email_notifications === 'true',
+        smsDeliveryReports: settingsMap.sms_delivery_reports === 'true',
+        dailyReports: settingsMap.daily_reports === 'true',
+        errorAlerts: settingsMap.error_alerts === 'true'
+      })
+    } catch (error) {
+      console.error('Error loading settings:', error)
+      toast({
+        title: "Error",
+        description: "Failed to load settings from database.",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const saveSettings = async (settingsToSave: Array<{ key: string; value: string; description?: string }>) => {
+    try {
+      setSaving(true)
+
+      // First, try to update existing settings
+      for (const setting of settingsToSave) {
+        const { error: upsertError } = await supabase
+          .from('nana_settings')
+          .upsert({
+            key: setting.key,
+            value: setting.value,
+            description: setting.description,
+            updated_at: new Date().toISOString()
+          }, {
+            onConflict: 'key'
+          })
+
+        if (upsertError) throw upsertError
+      }
+
+      toast({
+        title: "Settings Saved",
+        description: "Your settings have been saved successfully."
+      })
+    } catch (error) {
+      console.error('Error saving settings:', error)
+      toast({
+        title: "Error",
+        description: "Failed to save settings to database.",
+        variant: "destructive"
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleApiSave = async () => {
     if (!apiSettings.clientId || !apiSettings.clientSecret || !apiSettings.senderId) {
       toast({
         title: "Missing Information",
@@ -40,18 +131,31 @@ const Settings = () => {
       return
     }
 
-    // In a real app, this would be saved securely
-    toast({
-      title: "Settings Saved",
-      description: "Hubtel SMS API configuration has been saved successfully."
-    })
+    await saveSettings([
+      { key: 'hubtel_client_id', value: apiSettings.clientId, description: 'Hubtel SMS API Client ID' },
+      { key: 'hubtel_client_secret', value: apiSettings.clientSecret, description: 'Hubtel SMS API Client Secret' },
+      { key: 'hubtel_sender_id', value: apiSettings.senderId, description: 'Hubtel SMS Sender ID' }
+    ])
   }
 
-  const handleNotificationSave = () => {
-    toast({
-      title: "Preferences Saved",
-      description: "Your notification preferences have been updated."
-    })
+  const handleNotificationSave = async () => {
+    await saveSettings([
+      { key: 'email_notifications', value: notificationSettings.emailNotifications.toString(), description: 'Email notifications enabled' },
+      { key: 'sms_delivery_reports', value: notificationSettings.smsDeliveryReports.toString(), description: 'SMS delivery reports enabled' },
+      { key: 'daily_reports', value: notificationSettings.dailyReports.toString(), description: 'Daily reports enabled' },
+      { key: 'error_alerts', value: notificationSettings.errorAlerts.toString(), description: 'Error alerts enabled' }
+    ])
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-2 text-muted-foreground">Loading settings...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -138,9 +242,9 @@ const Settings = () => {
                 </div>
               </div>
 
-              <Button onClick={handleApiSave} className="w-full">
+              <Button onClick={handleApiSave} className="w-full" disabled={saving}>
                 <Save className="h-4 w-4 mr-2" />
-                Save API Configuration
+                {saving ? "Saving..." : "Save API Configuration"}
               </Button>
             </CardContent>
           </Card>
@@ -277,9 +381,9 @@ const Settings = () => {
                 </div>
               </div>
 
-              <Button onClick={handleNotificationSave} className="w-full">
+              <Button onClick={handleNotificationSave} className="w-full" disabled={saving}>
                 <Save className="h-4 w-4 mr-2" />
-                Save Preferences
+                {saving ? "Saving..." : "Save Preferences"}
               </Button>
             </CardContent>
           </Card>
