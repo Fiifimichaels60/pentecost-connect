@@ -7,35 +7,43 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { MessageSquare, Users, Phone, Send, Plus, X } from "lucide-react"
+import { MessageSquare, Users, Phone, Send, Plus, X, Clock, CheckCircle, AlertCircle } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { supabase } from "@/integrations/supabase/client"
 
 const Compose = () => {
   const [message, setMessage] = useState("")
   const [manualNumbers, setManualNumbers] = useState("")
   const [selectedGroup, setSelectedGroup] = useState("")
   const [recipients, setRecipients] = useState<string[]>([])
+  const [sendingStatus, setSendingStatus] = useState<"idle" | "sending" | "sent" | "error">("idle")
+  const [sendingProgress, setSendingProgress] = useState(0)
+  const [deliveryStats, setDeliveryStats] = useState({ delivered: 0, failed: 0, pending: 0 })
   const { toast } = useToast()
 
-  const groups = [
+  // Sample groups - in real app, load from database
+  const [groups] = useState([
     { id: "youth", name: "Youth Ministry", count: 45 },
     { id: "men", name: "Men's Fellowship", count: 32 },
     { id: "women", name: "Women's Fellowship", count: 58 },
     { id: "choir", name: "Church Choir", count: 28 },
     { id: "elders", name: "Church Elders", count: 12 },
     { id: "ushers", name: "Ushering Team", count: 20 }
-  ]
+  ])
 
   const templates = [
     "Sunday Service Reminder: Join us for worship service this Sunday at 9:00 AM. God bless!",
     "Midweek Service: Prayer meeting tonight at 7:00 PM. Come as you are!",
     "Happy Birthday! May God's blessings be upon you on your special day.",
-    "Event Reminder: Don't forget about our upcoming church event. See you there!"
+    "Event Reminder: Don't forget about our upcoming church event. See you there!",
+    "Tithe and Offering: Remember to bring your tithes and offerings as we worship together.",
+    "Prayer Request: Please join us in prayer for our community and nation.",
+    "Welcome Message: Welcome to Church Of Pentecost, Anaji English Assembly! We're glad to have you."
   ]
 
   const addManualNumber = () => {
     const numbers = manualNumbers.split(/[,\n]/).map(n => n.trim()).filter(n => n)
-    const validNumbers = numbers.filter(n => /^\+?\d{10,15}$/.test(n))
+    const validNumbers = numbers.filter(n => /^\+?233\d{9}$|^\+?\d{10,15}$/.test(n))
     
     if (validNumbers.length > 0) {
       setRecipients([...recipients, ...validNumbers])
@@ -44,10 +52,16 @@ const Compose = () => {
         title: "Numbers Added",
         description: `${validNumbers.length} valid numbers added to recipients.`
       })
-    } else {
+    } else if (numbers.length > 0) {
       toast({
         title: "Invalid Numbers",
-        description: "Please enter valid phone numbers.",
+        description: "Please enter valid phone numbers (e.g., +233XXXXXXXXX or 10-15 digits).",
+        variant: "destructive"
+      })
+    } else {
+      toast({
+        title: "No Numbers",
+        description: "Please enter phone numbers to add.",
         variant: "destructive"
       })
     }
@@ -57,7 +71,28 @@ const Compose = () => {
     setRecipients(recipients.filter(r => r !== number))
   }
 
-  const handleSend = () => {
+  const simulateDelivery = async (totalRecipients: number) => {
+    setSendingStatus("sending")
+    setSendingProgress(0)
+    setDeliveryStats({ delivered: 0, failed: 0, pending: totalRecipients })
+
+    // Simulate sending progress
+    for (let i = 0; i <= 100; i += 10) {
+      await new Promise(resolve => setTimeout(resolve, 200))
+      setSendingProgress(i)
+      
+      // Simulate delivery updates
+      const delivered = Math.floor((i / 100) * totalRecipients * 0.95) // 95% success rate
+      const failed = Math.floor((i / 100) * totalRecipients * 0.05) // 5% failure rate
+      const pending = totalRecipients - delivered - failed
+      
+      setDeliveryStats({ delivered, failed, pending })
+    }
+
+    setSendingStatus("sent")
+  }
+
+  const handleSend = async () => {
     if (!message.trim()) {
       toast({
         title: "Message Required",
@@ -67,7 +102,9 @@ const Compose = () => {
       return
     }
 
-    if (recipients.length === 0 && !selectedGroup) {
+    const totalRecipients = recipients.length + (selectedGroup ? groups.find(g => g.id === selectedGroup)?.count || 0 : 0)
+    
+    if (totalRecipients === 0) {
       toast({
         title: "Recipients Required",
         description: "Please select a group or add manual recipients.",
@@ -76,12 +113,56 @@ const Compose = () => {
       return
     }
 
-    // Simulate sending
-    toast({
-      title: "Message Sent!",
-      description: `SMS sent successfully to ${recipients.length || 'group'} recipients.`
-    })
+    try {
+      // Save to history table
+      const recipientType = selectedGroup ? "group" : "manual"
+      const recipientName = selectedGroup 
+        ? groups.find(g => g.id === selectedGroup)?.name || "Unknown Group"
+        : "Manual Recipients"
+      
+      const { error } = await supabase
+        .from('anaji_history')
+        .insert({
+          message: message,
+          recipients: recipients,
+          recipient_type: recipientType,
+          recipient_name: recipientName,
+          group_id: selectedGroup || null,
+          status: 'sent',
+          recipient_count: totalRecipients,
+          cost: totalRecipients * 0.05 // 5 pesewas per SMS
+        })
+
+      if (error) throw error
+
+      // Simulate delivery process
+      await simulateDelivery(totalRecipients)
+      
+      toast({
+        title: "Message Sent Successfully!",
+        description: `SMS sent to ${totalRecipients} recipients.`
+      })
+
+      // Reset form after successful send
+      setMessage("")
+      setRecipients([])
+      setSelectedGroup("")
+      setManualNumbers("")
+      
+    } catch (error) {
+      console.error('Error sending message:', error)
+      setSendingStatus("error")
+      toast({
+        title: "Send Failed",
+        description: "Failed to send message. Please try again.",
+        variant: "destructive"
+      })
+    }
   }
+
+  const getSMSCount = (text: string) => Math.ceil(text.length / 160)
+  const getTotalRecipients = () => recipients.length + (selectedGroup ? groups.find(g => g.id === selectedGroup)?.count || 0 : 0)
+  const getEstimatedCost = () => (getTotalRecipients() * getSMSCount(message) * 0.05).toFixed(2)
 
   return (
     <div className="space-y-6">
@@ -89,6 +170,47 @@ const Compose = () => {
         <MessageSquare className="h-6 w-6 text-primary" />
         <h1 className="text-2xl font-bold">Compose SMS</h1>
       </div>
+
+      {/* Sending Status */}
+      {sendingStatus !== "idle" && (
+        <Card className="shadow-elegant border-l-4 border-l-primary">
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-3">
+              {sendingStatus === "sending" && <Clock className="h-5 w-5 text-primary animate-spin" />}
+              {sendingStatus === "sent" && <CheckCircle className="h-5 w-5 text-success" />}
+              {sendingStatus === "error" && <AlertCircle className="h-5 w-5 text-destructive" />}
+              
+              <div className="flex-1">
+                <p className="font-medium">
+                  {sendingStatus === "sending" && "Sending Messages..."}
+                  {sendingStatus === "sent" && "Messages Sent Successfully!"}
+                  {sendingStatus === "error" && "Failed to Send Messages"}
+                </p>
+                
+                {sendingStatus === "sending" && (
+                  <div className="mt-2">
+                    <div className="w-full bg-muted rounded-full h-2">
+                      <div 
+                        className="bg-primary h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${sendingProgress}%` }}
+                      />
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1">{sendingProgress}% complete</p>
+                  </div>
+                )}
+                
+                {(sendingStatus === "sent" || sendingStatus === "sending") && (
+                  <div className="flex space-x-4 mt-2 text-sm">
+                    <span className="text-success">✓ Delivered: {deliveryStats.delivered}</span>
+                    <span className="text-destructive">✗ Failed: {deliveryStats.failed}</span>
+                    <span className="text-muted-foreground">⏳ Pending: {deliveryStats.pending}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Compose Area */}
@@ -107,12 +229,33 @@ const Compose = () => {
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   className="min-h-32"
+                  disabled={sendingStatus === "sending"}
                 />
                 <div className="flex justify-between text-sm text-muted-foreground">
                   <span>{message.length} characters</span>
-                  <span>{Math.ceil(message.length / 160)} SMS</span>
+                  <span>{getSMSCount(message)} SMS</span>
                 </div>
               </div>
+
+              {/* Cost Estimation */}
+              {message && getTotalRecipients() > 0 && (
+                <div className="bg-muted/50 p-3 rounded-lg">
+                  <div className="grid grid-cols-3 gap-4 text-sm">
+                    <div>
+                      <p className="text-muted-foreground">Recipients</p>
+                      <p className="font-medium">{getTotalRecipients()}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">SMS Count</p>
+                      <p className="font-medium">{getSMSCount(message)} per recipient</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Estimated Cost</p>
+                      <p className="font-medium text-primary">GH₵{getEstimatedCost()}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Quick Templates */}
               <div className="space-y-2">
@@ -124,6 +267,7 @@ const Compose = () => {
                       variant="outline"
                       className="justify-start text-left h-auto p-3"
                       onClick={() => setMessage(template)}
+                      disabled={sendingStatus === "sending"}
                     >
                       <span className="truncate">{template}</span>
                     </Button>
@@ -145,6 +289,7 @@ const Compose = () => {
                     <Select value={selectedGroup} onValueChange={setSelectedGroup}>
                       <SelectTrigger>
                         <SelectValue placeholder="Choose a group..." />
+                      disabled={sendingStatus === "sending"}
                       </SelectTrigger>
                       <SelectContent>
                         {groups.map((group) => (
@@ -170,18 +315,23 @@ const Compose = () => {
                       value={manualNumbers}
                       onChange={(e) => setManualNumbers(e.target.value)}
                       className="min-h-24"
+                      disabled={sendingStatus === "sending"}
                     />
                     <Button onClick={addManualNumber} variant="outline" size="sm">
                       <Plus className="h-4 w-4 mr-2" />
                       Add Numbers
                     </Button>
+                      disabled={sendingStatus === "sending"}
                   </div>
                 </TabsContent>
 
                 <TabsContent value="single" className="space-y-4">
                   <div className="space-y-2">
                     <Label>Phone Number</Label>
-                    <Input placeholder="+233 XX XXX XXXX" />
+                    <Input 
+                      placeholder="+233 XX XXX XXXX" 
+                      disabled={sendingStatus === "sending"}
+                    />
                   </div>
                 </TabsContent>
               </Tabs>
@@ -200,6 +350,7 @@ const Compose = () => {
                           size="sm"
                           className="h-auto p-0 hover:bg-transparent"
                           onClick={() => removeRecipient(number)}
+                          disabled={sendingStatus === "sending"}
                         >
                           <X className="h-3 w-3" />
                         </Button>
@@ -210,9 +361,14 @@ const Compose = () => {
               )}
 
               {/* Send Button */}
-              <Button onClick={handleSend} className="w-full" size="lg">
+              <Button 
+                onClick={handleSend} 
+                className="w-full" 
+                size="lg"
+                disabled={sendingStatus === "sending" || (!message.trim() || getTotalRecipients() === 0)}
+              >
                 <Send className="h-4 w-4 mr-2" />
-                Send Message
+                {sendingStatus === "sending" ? "Sending..." : "Send Message"}
               </Button>
             </CardContent>
           </Card>
@@ -258,6 +414,31 @@ const Compose = () => {
                 <span className="text-muted-foreground">Success Rate</span>
                 <span className="font-medium text-success">98.5%</span>
               </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Cost Today</span>
+                <span className="font-medium">GH₵12.40</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Quick Actions */}
+          <Card className="shadow-elegant">
+            <CardHeader>
+              <CardTitle>Quick Actions</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <Button variant="outline" className="w-full justify-start" size="sm">
+                <MessageSquare className="h-4 w-4 mr-2" />
+                View Templates
+              </Button>
+              <Button variant="outline" className="w-full justify-start" size="sm">
+                <Users className="h-4 w-4 mr-2" />
+                Manage Groups
+              </Button>
+              <Button variant="outline" className="w-full justify-start" size="sm">
+                <Phone className="h-4 w-4 mr-2" />
+                Import Contacts
+              </Button>
             </CardContent>
           </Card>
         </div>
