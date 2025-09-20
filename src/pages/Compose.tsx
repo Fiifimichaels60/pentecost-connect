@@ -114,33 +114,83 @@ const Compose = () => {
     }
 
     try {
-      // Save to history table
+      setSendingStatus("sending")
+      setSendingProgress(0)
+      setDeliveryStats({ delivered: 0, failed: 0, pending: totalRecipients })
+
+      // Determine recipient info
       const recipientType = selectedGroup ? "group" : "manual"
       const recipientName = selectedGroup 
         ? groups.find(g => g.id === selectedGroup)?.name || "Unknown Group"
         : "Manual Recipients"
+
+      // Collect all recipient phone numbers
+      let allRecipients: string[] = [...recipients]
       
-      const { error } = await supabase
-        .from('anaji_history')
-        .insert({
-          message: message,
-          recipients: recipients,
-          recipient_type: recipientType,
-          recipient_name: recipientName,
-          group_id: selectedGroup || null,
-          status: 'sent',
-          recipient_count: totalRecipients,
-          cost: totalRecipients * 0.05 // 5 pesewas per SMS
-        })
+      // If a group is selected, get members from that group
+      if (selectedGroup) {
+        const { data: groupMembers, error: memberError } = await supabase
+          .from('anaji_members')
+          .select('phone')
+          .eq('group_id', selectedGroup)
+          .eq('status', 'active')
+        
+        if (memberError) {
+          throw new Error(`Failed to fetch group members: ${memberError.message}`)
+        }
+        
+        const groupPhones = groupMembers.map(member => member.phone).filter(phone => phone)
+        allRecipients = [...allRecipients, ...groupPhones]
+      }
 
-      if (error) throw error
+      // Remove duplicates
+      allRecipients = [...new Set(allRecipients)]
 
-      // Simulate delivery process
-      await simulateDelivery(totalRecipients)
+      if (allRecipients.length === 0) {
+        throw new Error('No valid recipients found')
+      }
+
+      // Prepare SMS campaign data
+      const campaignName = `${recipientName} - ${new Date().toLocaleDateString()}`
+      
+      console.log('Sending SMS campaign:', {
+        campaignName,
+        recipients: allRecipients,
+        message: message.substring(0, 50) + '...'
+      })
+
+      // Call the edge function to send SMS
+      const { data: result, error: smsError } = await supabase.functions.invoke('send-sms', {
+        body: {
+          campaignName,
+          message,
+          recipients: allRecipients,
+          recipientType,
+          recipientName,
+          groupId: selectedGroup || null
+        }
+      })
+
+      if (smsError) {
+        throw new Error(`SMS service error: ${smsError.message}`)
+      }
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to send SMS')
+      }
+
+      // Update UI with real results
+      setDeliveryStats({ 
+        delivered: result.delivered, 
+        failed: result.failed, 
+        pending: 0 
+      })
+      setSendingProgress(100)
+      setSendingStatus("sent")
       
       toast({
-        title: "Message Sent Successfully!",
-        description: `SMS sent to ${totalRecipients} recipients.`
+        title: "SMS Campaign Completed!",
+        description: `${result.delivered} messages delivered, ${result.failed} failed.`
       })
 
       // Reset form after successful send
@@ -150,11 +200,11 @@ const Compose = () => {
       setManualNumbers("")
       
     } catch (error) {
-      console.error('Error sending message:', error)
+      console.error('Error sending SMS campaign:', error)
       setSendingStatus("error")
       toast({
-        title: "Send Failed",
-        description: "Failed to send message. Please try again.",
+        title: "SMS Campaign Failed",
+        description: error.message || "Failed to send SMS. Please try again.",
         variant: "destructive"
       })
     }

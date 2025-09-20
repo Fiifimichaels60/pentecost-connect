@@ -150,6 +150,188 @@ export type Database = {
           },
         ]
       }
+      anaji_sms_campaigns: {
+        Row: {
+          campaign_name: string
+          cost: number
+          created_at: string
+          delivered_count: number
+          failed_count: number
+          group_id: string | null
+          id: string
+          message: string
+          recipient_count: number
+          recipient_name: string
+          recipient_type: string
+          recipients: string[] | null
+          sent_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          campaign_name: string
+          cost?: number
+          created_at?: string
+          delivered_count?: number
+          failed_count?: number
+          group_id?: string | null
+          id?: string
+          message: string
+          recipient_count?: number
+          recipient_name: string
+          recipient_type: string
+          recipients?: string[] | null
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          campaign_name?: string
+          cost?: number
+          created_at?: string
+          delivered_count?: number
+          failed_count?: number
+          group_id?: string | null
+          id?: string
+          message?: string
+          recipient_count?: number
+          recipient_name?: string
+          recipient_type?: string
+          recipients?: string[] | null
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      anaji_sms_delivery_reports: {
+        Row: {
+          campaign_id: string
+          created_at: string
+          delivery_time: string | null
+          error_message: string | null
+          id: string
+          provider_message_id: string | null
+          recipient_phone: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          campaign_id: string
+          created_at?: string
+          delivery_time?: string | null
+          error_message?: string | null
+          id?: string
+          provider_message_id?: string | null
+          recipient_phone: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          campaign_id?: string
+          created_at?: string
+          delivery_time?: string | null
+          error_message?: string | null
+          id?: string
+          provider_message_id?: string | null
+          recipient_phone?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anaji_sms_delivery_reports_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "anaji_sms_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attendance_records: {
+        Row: {
+          id: string
+          marked_at: string
+          member_id: string
+          present: boolean
+          session_id: string
+        }
+        Insert: {
+          id?: string
+          marked_at?: string
+          member_id: string
+          present?: boolean
+          session_id: string
+        }
+        Update: {
+          id?: string
+          marked_at?: string
+          member_id?: string
+          present?: boolean
+          session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_records_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "anaji_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_records_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "attendance_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attendance_sessions: {
+        Row: {
+          absent_count: number
+          created_at: string
+          created_by: string | null
+          date: string
+          id: string
+          notes: string | null
+          present_count: number
+          status: string
+          title: string
+          total_members: number
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          absent_count?: number
+          created_at?: string
+          created_by?: string | null
+          date: string
+          id?: string
+          notes?: string | null
+          present_count?: number
+          status?: string
+          title: string
+          total_members?: number
+          type?: string
+          updated_at?: string
+        }
+        Update: {
+          absent_count?: number
+          created_at?: string
+          created_by?: string | null
+          date?: string
+          id?: string
+          notes?: string | null
+          present_count?: number
+          status?: string
+          title?: string
+          total_members?: number
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       categories: {
         Row: {
           created_at: string
