@@ -17,17 +17,20 @@ import { supabase } from "@/integrations/supabase/client"
 
 interface Member {
   id: string
-  first_name: string
-  last_name: string
+  name: string
   email: string
   phone: string
+  group_id: string | null
+  group_name: string | null
+  location: string | null
+  date_of_birth: string | null
+  status: string
   created_at: string
-  is_admin: boolean
 }
 
 const Members = () => {
   const [members, setMembers] = useState<Member[]>([])
-  const [categories, setCategories] = useState<{id: string, name: string}[]>([])
+  const [groups, setGroups] = useState<{id: string, name: string}[]>([])
   const [loading, setLoading] = useState(true)
 
   const [searchTerm, setSearchTerm] = useState("")
@@ -50,7 +53,7 @@ const Members = () => {
   // Load members and categories from database
   useEffect(() => {
     loadMembers()
-    loadCategories()
+    loadGroups()
   }, [])
 
   const loadMembers = async () => {
@@ -67,12 +70,15 @@ const Members = () => {
 
       const formattedMembers = (data || []).map(member => ({
         id: member.id,
-        first_name: member.name.split(' ')[0] || member.name,
-        last_name: member.name.split(' ').slice(1).join(' ') || '',
+        name: member.name,
         email: member.email || 'N/A',
         phone: member.phone,
+        group_id: member.group_id,
+        group_name: (member as any).anaji_groups?.name || null,
+        location: member.location,
+        date_of_birth: member.date_of_birth,
+        status: member.status,
         created_at: member.created_at,
-        is_admin: false
       }))
 
       setMembers(formattedMembers)
@@ -88,7 +94,7 @@ const Members = () => {
     }
   }
 
-  const loadCategories = async () => {
+  const loadGroups = async () => {
     try {
       const { data, error } = await supabase
         .from('anaji_groups')
@@ -96,19 +102,18 @@ const Members = () => {
         .order('name')
 
       if (error) throw error
-      setCategories(data || [])
+      setGroups(data || [])
     } catch (error) {
-      console.error('Error loading categories:', error)
+      console.error('Error loading groups:', error)
     }
   }
 
   const filteredMembers = members.filter(member => {
-    const fullName = `${member.first_name} ${member.last_name}`.toLowerCase()
-    const matchesSearch = fullName.includes(searchTerm.toLowerCase()) ||
+    const matchesSearch = member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (member.phone && member.phone.includes(searchTerm)) ||
                          member.email.toLowerCase().includes(searchTerm.toLowerCase())
-    // For now, ignore group filtering since we don't have group relationships
-    return matchesSearch
+    const matchesGroup = selectedGroup === "all" || member.group_id === selectedGroup
+    return matchesSearch && matchesGroup
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -125,7 +130,7 @@ const Members = () => {
 
     try {
       if (editingMember) {
-        // Update existing member in anaji_members table
+        // Update existing member
         const { error } = await supabase
           .from('anaji_members')
           .update({
@@ -144,10 +149,10 @@ const Members = () => {
 
         toast({
           title: "Member Updated",
-          description: `${formData.name} has been updated successfully.`
+          description: `${formData.name} has been updated successfully.`,
         })
       } else {
-        // Create new member in anaji_members table
+        // Create new member
         const { error } = await supabase
           .from('anaji_members')
           .insert({
@@ -165,7 +170,7 @@ const Members = () => {
 
         toast({
           title: "Member Added",
-          description: `${formData.name} has been added successfully.`
+          description: `${formData.name} has been added successfully.`,
         })
       }
 
@@ -188,15 +193,25 @@ const Members = () => {
 
   const handleEdit = (member: Member) => {
     setEditingMember(member)
+    
+    // Parse date of birth if available
+    let day = "", month = "", year = ""
+    if (member.date_of_birth) {
+      const date = new Date(member.date_of_birth)
+      day = date.getDate().toString()
+      month = (date.getMonth() + 1).toString()
+      year = date.getFullYear().toString()
+    }
+    
     setFormData({
-      name: `${member.first_name} ${member.last_name}`,
-      phone: member.phone || '',
+      name: member.name,
+      phone: member.phone,
       email: member.email,
-      group: '',
-      location: '',
-      day: '',
-      month: '',
-      year: ''
+      group: member.group_id || '',
+      location: member.location || '',
+      day,
+      month,
+      year
     })
     setIsDialogOpen(true)
   }
@@ -206,7 +221,7 @@ const Members = () => {
     if (member) {
       try {
         const { error } = await supabase
-          .from('nana_profiles')
+          .from('anaji_members')
           .delete()
           .eq('id', memberId)
 
@@ -214,7 +229,7 @@ const Members = () => {
 
         toast({
           title: "Member Removed",
-          description: `${member.first_name} ${member.last_name} has been removed.`
+          description: `${member.name} has been removed.`
         })
         
         await loadMembers()
@@ -229,13 +244,14 @@ const Members = () => {
     }
   }
 
-  const toggleStatus = async (memberId: string) => {
+  const toggleStatus = async (memberId: string, currentStatus: string) => {
     const member = members.find(m => m.id === memberId)
     if (member) {
       try {
+        const newStatus = currentStatus === 'active' ? 'inactive' : 'active'
         const { error } = await supabase
-          .from('nana_profiles')
-          .update({ is_admin: !member.is_admin })
+          .from('anaji_members')
+          .update({ status: newStatus })
           .eq('id', memberId)
 
         if (error) throw error
@@ -323,9 +339,9 @@ const Members = () => {
                     <SelectValue placeholder="Select a group" />
                   </SelectTrigger>
                   <SelectContent>
-                    {categories.map((category) => (
-                      <SelectItem key={category.id} value={category.id}>
-                        {category.name}
+                    {groups.map((group) => (
+                      <SelectItem key={group.id} value={group.id}>
+                        {group.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -441,10 +457,10 @@ const Members = () => {
         </Card>
         <Card className="shadow-elegant">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Categories</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Groups</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{categories.length}</div>
+            <div className="text-2xl font-bold">{groups.length}</div>
           </CardContent>
         </Card>
       </div>
@@ -466,9 +482,9 @@ const Members = () => {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Categories</SelectItem>
-            {categories.map((category) => (
-              <SelectItem key={category.id} value={category.id}>
-                {category.name}
+            {groups.map((group) => (
+              <SelectItem key={group.id} value={group.id}>
+                {group.name}
               </SelectItem>
             ))}
           </SelectContent>
@@ -498,7 +514,7 @@ const Members = () => {
                 </TableRow>
               ) : filteredMembers.map((member) => (
                 <TableRow key={member.id}>
-                  <TableCell className="font-medium">{member.first_name} {member.last_name}</TableCell>
+                  <TableCell className="font-medium">{member.name}</TableCell>
                   <TableCell>
                     <div className="space-y-1">
                       {member.phone && (
@@ -514,21 +530,25 @@ const Members = () => {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Badge variant="outline" className="flex items-center space-x-1">
-                      <Users className="h-3 w-3" />
-                      <span>General</span>
-                    </Badge>
+                    {member.group_name ? (
+                      <Badge variant="outline" className="flex items-center space-x-1">
+                        <Users className="h-3 w-3" />
+                        <span>{member.group_name}</span>
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">No Group</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     {new Date(member.created_at).toLocaleDateString()}
                   </TableCell>
                   <TableCell>
                     <Badge 
-                      variant={member.is_admin ? "default" : "secondary"}
+                      variant={member.status === "active" ? "default" : "secondary"}
                       className="cursor-pointer"
-                      onClick={() => toggleStatus(member.id)}
+                      onClick={() => toggleStatus(member.id, member.status)}
                     >
-                      {member.is_admin ? "admin" : "member"}
+                      {member.status}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">

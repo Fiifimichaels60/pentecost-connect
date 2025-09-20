@@ -6,9 +6,10 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
-import { Users, Plus, Edit, Trash2, Search, UserPlus } from "lucide-react"
+import { Users, Plus, Edit, Trash2, Search, UserPlus, Phone, Mail } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 interface Group {
   id: string
@@ -18,16 +19,30 @@ interface Group {
   createdAt: string
 }
 
+interface Member {
+  id: string
+  name: string
+  phone: string
+  email: string | null
+  status: string
+}
+
 const Groups = () => {
   const [groups, setGroups] = useState<Group[]>([])
+  const [groupMembers, setGroupMembers] = useState<Member[]>([])
+  const [availableMembers, setAvailableMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingMembers, setLoadingMembers] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [isMemberDialogOpen, setIsMemberDialogOpen] = useState(false)
   const [editingGroup, setEditingGroup] = useState<Group | null>(null)
+  const [selectedGroup, setSelectedGroup] = useState<Group | null>(null)
   const [formData, setFormData] = useState({
     name: "",
     description: ""
   })
+  const [memberSearchTerm, setMemberSearchTerm] = useState("")
 
   const { toast } = useToast()
 
@@ -64,6 +79,57 @@ const Groups = () => {
       setLoading(false)
     }
   }
+
+  const loadGroupMembers = async (groupId: string) => {
+    try {
+      setLoadingMembers(true)
+      const { data, error } = await supabase
+        .from('anaji_members')
+        .select('*')
+        .eq('group_id', groupId)
+        .order('name')
+
+      if (error) throw error
+
+      setGroupMembers(data || [])
+    } catch (error) {
+      console.error('Error loading group members:', error)
+      toast({
+        title: "Error",
+        description: "Failed to load group members",
+        variant: "destructive"
+      })
+    } finally {
+      setLoadingMembers(false)
+    }
+  }
+
+  const loadAvailableMembers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('anaji_members')
+        .select('*')
+        .is('group_id', null)
+        .eq('status', 'active')
+        .order('name')
+
+      if (error) throw error
+
+      setAvailableMembers(data || [])
+    } catch (error) {
+      console.error('Error loading available members:', error)
+      toast({
+        title: "Error",
+        description: "Failed to load available members",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const filteredAvailableMembers = availableMembers.filter(member =>
+    member.name.toLowerCase().includes(memberSearchTerm.toLowerCase()) ||
+    member.phone.includes(memberSearchTerm)
+  )
 
   const filteredGroups = groups.filter(group =>
     group.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -168,6 +234,87 @@ const Groups = () => {
           variant: "destructive"
         })
       }
+    }
+  }
+
+  const handleManageMembers = async (group: Group) => {
+    setSelectedGroup(group)
+    await loadGroupMembers(group.id)
+    await loadAvailableMembers()
+    setIsMemberDialogOpen(true)
+  }
+
+  const addMemberToGroup = async (memberId: string) => {
+    if (!selectedGroup) return
+
+    try {
+      const { error } = await supabase
+        .from('anaji_members')
+        .update({ group_id: selectedGroup.id })
+        .eq('id', memberId)
+
+      if (error) throw error
+
+      // Update member count in group
+      const { error: updateError } = await supabase
+        .from('anaji_groups')
+        .update({ member_count: selectedGroup.memberCount + 1 })
+        .eq('id', selectedGroup.id)
+
+      if (updateError) throw updateError
+
+      await loadGroupMembers(selectedGroup.id)
+      await loadAvailableMembers()
+      await loadGroups()
+
+      toast({
+        title: "Member Added",
+        description: "Member has been added to the group successfully."
+      })
+    } catch (error) {
+      console.error('Error adding member to group:', error)
+      toast({
+        title: "Error",
+        description: "Failed to add member to group",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const removeMemberFromGroup = async (memberId: string) => {
+    if (!selectedGroup) return
+
+    try {
+      const { error } = await supabase
+        .from('anaji_members')
+        .update({ group_id: null })
+        .eq('id', memberId)
+
+      if (error) throw error
+
+      // Update member count in group
+      const { error: updateError } = await supabase
+        .from('anaji_groups')
+        .update({ member_count: Math.max(0, selectedGroup.memberCount - 1) })
+        .eq('id', selectedGroup.id)
+
+      if (updateError) throw updateError
+
+      await loadGroupMembers(selectedGroup.id)
+      await loadAvailableMembers()
+      await loadGroups()
+
+      toast({
+        title: "Member Removed",
+        description: "Member has been removed from the group."
+      })
+    } catch (error) {
+      console.error('Error removing member from group:', error)
+      toast({
+        title: "Error",
+        description: "Failed to remove member from group",
+        variant: "destructive"
+      })
     }
   }
 
@@ -289,6 +436,7 @@ const Groups = () => {
                   variant="outline" 
                   size="sm"
                   className="flex-1"
+                  onClick={() => handleManageMembers(group)}
                 >
                   <UserPlus className="h-4 w-4 mr-1" />
                   Members
@@ -322,6 +470,108 @@ const Groups = () => {
           )}
         </div>
       )}
+
+      {/* Member Management Dialog */}
+      <Dialog open={isMemberDialogOpen} onOpenChange={setIsMemberDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Manage Members - {selectedGroup?.name}
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Current Group Members */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-medium">Current Members</h3>
+                <Badge variant="secondary">{groupMembers.length} members</Badge>
+              </div>
+              
+              {loadingMembers ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto"></div>
+                  <p className="mt-2 text-sm text-muted-foreground">Loading members...</p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {groupMembers.map((member) => (
+                    <div key={member.id} className="flex items-center justify-between p-3 border border-border rounded-lg">
+                      <div>
+                        <p className="font-medium">{member.name}</p>
+                        <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                          <Phone className="h-3 w-3" />
+                          <span>{member.phone}</span>
+                        </div>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => removeMemberFromGroup(member.id)}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  ))}
+                  {groupMembers.length === 0 && (
+                    <div className="text-center py-8">
+                      <Users className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                      <p className="text-muted-foreground">No members in this group</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Available Members */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-medium">Available Members</h3>
+                <Badge variant="outline">{availableMembers.length} available</Badge>
+              </div>
+              
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search available members..."
+                  value={memberSearchTerm}
+                  onChange={(e) => setMemberSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {filteredAvailableMembers.map((member) => (
+                  <div key={member.id} className="flex items-center justify-between p-3 border border-border rounded-lg">
+                    <div>
+                      <p className="font-medium">{member.name}</p>
+                      <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                        <Phone className="h-3 w-3" />
+                        <span>{member.phone}</span>
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => addMemberToGroup(member.id)}
+                    >
+                      Add
+                    </Button>
+                  </div>
+                ))}
+                {filteredAvailableMembers.length === 0 && (
+                  <div className="text-center py-8">
+                    <Users className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                    <p className="text-muted-foreground">
+                      {memberSearchTerm ? "No members found" : "No available members"}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -19,14 +19,16 @@ const Compose = () => {
   const [sendingStatus, setSendingStatus] = useState<"idle" | "sending" | "sent" | "error">("idle")
   const [sendingProgress, setSendingProgress] = useState(0)
   const [deliveryStats, setDeliveryStats] = useState({ delivered: 0, failed: 0, pending: 0 })
+  const [loadingGroups, setLoadingGroups] = useState(true)
   const { toast } = useToast()
 
   const [groups, setGroups] = useState<{id: string, name: string, count: number}[]>([])
   
   // Load groups from database
-  useState(() => {
+  useEffect(() => {
     const loadGroups = async () => {
       try {
+        setLoadingGroups(true)
         const { data, error } = await supabase
           .from('anaji_groups')
           .select('*')
@@ -53,11 +55,18 @@ const Compose = () => {
         setGroups(groupsWithCount)
       } catch (error) {
         console.error('Error loading groups:', error)
+        toast({
+          title: "Error",
+          description: "Failed to load groups",
+          variant: "destructive"
+        })
+      } finally {
+        setLoadingGroups(false)
       }
     }
     
     loadGroups()
-  })
+  }, [])
 
   const templates = [
     "Sunday Service Reminder: Join us for worship service this Sunday at 9:00 AM. God bless!",
@@ -367,7 +376,6 @@ const Compose = () => {
                     <Select value={selectedGroup} onValueChange={setSelectedGroup}>
                       <SelectTrigger>
                         <SelectValue placeholder="Choose a group..." />
-                      disabled={sendingStatus === "sending"}
                       </SelectTrigger>
                       <SelectContent>
                         {groups.map((group) => (
@@ -443,7 +451,7 @@ const Compose = () => {
                 onClick={handleSend} 
                 className="w-full" 
                 size="lg"
-                disabled={sendingStatus === "sending" || (!message.trim() || getTotalRecipients() === 0)}
+                disabled={sendingStatus === "sending" || !message.trim() || getTotalRecipients() === 0}
               >
                 <Send className="h-4 w-4 mr-2" />
                 {sendingStatus === "sending" ? "Sending..." : "Send Message"}
@@ -464,12 +472,23 @@ const Compose = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
+                {loadingGroups ? (
+                  <div className="text-center py-4">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto"></div>
+                    <p className="mt-2 text-sm text-muted-foreground">Loading groups...</p>
+                  </div>
+                ) : groups.length === 0 ? (
+                  <div className="text-center py-4">
+                    <p className="text-muted-foreground">No groups available</p>
+                  </div>
+                ) : (
                 {groups.map((group) => (
                   <div key={group.id} className="flex items-center justify-between p-2 border border-border rounded-lg">
                     <span className="font-medium">{group.name}</span>
                     <Badge variant="outline">{group.count}</Badge>
                   </div>
                 ))}
+                )}
               </div>
             </CardContent>
           </Card>
