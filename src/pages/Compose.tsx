@@ -21,15 +21,43 @@ const Compose = () => {
   const [deliveryStats, setDeliveryStats] = useState({ delivered: 0, failed: 0, pending: 0 })
   const { toast } = useToast()
 
-  // Sample groups - in real app, load from database
-  const [groups] = useState([
-    { id: "youth", name: "Youth Ministry", count: 45 },
-    { id: "men", name: "Men's Fellowship", count: 32 },
-    { id: "women", name: "Women's Fellowship", count: 58 },
-    { id: "choir", name: "Church Choir", count: 28 },
-    { id: "elders", name: "Church Elders", count: 12 },
-    { id: "ushers", name: "Ushering Team", count: 20 }
-  ])
+  const [groups, setGroups] = useState<{id: string, name: string, count: number}[]>([])
+  
+  // Load groups from database
+  useState(() => {
+    const loadGroups = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('anaji_groups')
+          .select('*')
+          .order('name')
+        
+        if (error) throw error
+        
+        const groupsWithCount = await Promise.all(
+          (data || []).map(async (group) => {
+            const { count } = await supabase
+              .from('anaji_members')
+              .select('*', { count: 'exact', head: true })
+              .eq('group_id', group.id)
+              .eq('status', 'active')
+            
+            return {
+              id: group.id,
+              name: group.name,
+              count: count || 0
+            }
+          })
+        )
+        
+        setGroups(groupsWithCount)
+      } catch (error) {
+        console.error('Error loading groups:', error)
+      }
+    }
+    
+    loadGroups()
+  })
 
   const templates = [
     "Sunday Service Reminder: Join us for worship service this Sunday at 9:00 AM. God bless!",

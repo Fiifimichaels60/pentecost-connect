@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -35,69 +35,73 @@ interface Member {
 }
 
 const Attendance = () => {
-  const [sessions, setSessions] = useState<AttendanceSession[]>([
-    {
-      id: "1",
-      title: "Sunday Service",
-      date: "2024-03-17",
-      type: "Service",
-      totalMembers: 245,
-      presentCount: 198,
-      absentCount: 47,
-      status: "completed",
-      createdBy: "Pastor John",
-      notes: "Great turnout for communion service"
-    },
-    {
-      id: "2", 
-      title: "Youth Ministry Meeting",
-      date: "2024-03-15",
-      type: "Meeting",
-      totalMembers: 45,
-      presentCount: 38,
-      absentCount: 7,
-      status: "completed",
-      createdBy: "Youth Leader",
-      notes: "Discussed upcoming youth camp"
-    },
-    {
-      id: "3",
-      title: "Prayer Meeting",
-      date: "2024-03-14",
-      type: "Prayer",
-      totalMembers: 89,
-      presentCount: 67,
-      absentCount: 22,
-      status: "completed",
-      createdBy: "Elder Mary",
-      notes: "Powerful prayer session"
-    },
-    {
-      id: "4",
-      title: "Bible Study",
-      date: new Date().toISOString().split('T')[0],
-      type: "Study",
-      totalMembers: 56,
-      presentCount: 0,
-      absentCount: 0,
-      status: "active",
-      createdBy: "Pastor John",
-      notes: "Weekly Bible study session"
-    }
-  ])
+  const [sessions, setSessions] = useState<AttendanceSession[]>([])
+  const [members, setMembers] = useState<Member[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const [members] = useState<Member[]>([
-    { id: "1", name: "John Doe", group: "Men's Fellowship", present: false, phone: "+233241234567", lastAttended: "2024-03-10" },
-    { id: "2", name: "Mary Johnson", group: "Women's Fellowship", present: false, phone: "+233501234567", lastAttended: "2024-03-17" },
-    { id: "3", name: "David Wilson", group: "Church Choir", present: false, phone: "+233261234567", lastAttended: "2024-03-15" },
-    { id: "4", name: "Sarah Brown", group: "Youth Ministry", present: false, phone: "+233271234567", lastAttended: "2024-03-14" },
-    { id: "5", name: "Michael Davis", group: "Ushering Team", present: false, phone: "+233281234567", lastAttended: "2024-03-12" },
-    { id: "6", name: "Grace Thompson", group: "Women's Fellowship", present: false, phone: "+233291234567", lastAttended: "2024-03-17" },
-    { id: "7", name: "Emmanuel Asante", group: "Men's Fellowship", present: false, phone: "+233201234567", lastAttended: "2024-03-10" },
-    { id: "8", name: "Akosua Mensah", group: "Women's Fellowship", present: false, phone: "+233211234567", lastAttended: "2024-03-17" },
-    { id: "9", name: "Kwame Osei", group: "Youth Ministry", present: false, phone: "+233221234567", lastAttended: "2024-03-15" },
-    { id: "10", name: "Ama Boateng", group: "Church Choir", present: false, phone: "+233231234567", lastAttended: "2024-03-14" }
-  ])
+  // Load data from database
+  useEffect(() => {
+    loadSessions()
+    loadMembers()
+  }, [])
+
+  const loadSessions = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('attendance_sessions')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+
+      const formattedSessions = (data || []).map(session => ({
+        id: session.id,
+        title: session.title,
+        date: session.date,
+        type: session.type,
+        totalMembers: session.total_members,
+        presentCount: session.present_count,
+        absentCount: session.absent_count,
+        status: session.status as "active" | "completed",
+        createdBy: session.created_by || "Unknown",
+        notes: session.notes || ""
+      }))
+
+      setSessions(formattedSessions)
+    } catch (error) {
+      console.error('Error loading sessions:', error)
+    }
+  }
+
+  const loadMembers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('anaji_members')
+        .select(`
+          *,
+          anaji_groups(name)
+        `)
+        .eq('status', 'active')
+        .order('name')
+
+      if (error) throw error
+
+      const formattedMembers = (data || []).map(member => ({
+        id: member.id,
+        name: member.name,
+        group: member.anaji_groups?.name || "No Group",
+        present: false,
+        phone: member.phone,
+        lastAttended: "2024-01-01" // This would come from attendance records in real implementation
+      }))
+
+      setMembers(formattedMembers)
+    } catch (error) {
+      console.error('Error loading members:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const [searchTerm, setSearchTerm] = useState("")
   const [filterGroup, setFilterGroup] = useState("all")
@@ -129,7 +133,7 @@ const Attendance = () => {
     return matchesSearch && matchesGroup
   })
 
-  const handleCreateSession = (e: React.FormEvent) => {
+  const handleCreateSession = async (e: React.FormEvent) => {
     e.preventDefault()
     
     if (!formData.title.trim()) {
@@ -141,27 +145,39 @@ const Attendance = () => {
       return
     }
 
-    const newSession: AttendanceSession = {
-      id: Date.now().toString(),
-      title: formData.title,
-      date: formData.date,
-      type: formData.type,
-      totalMembers: members.length,
-      presentCount: 0,
-      absentCount: members.length,
-      status: "active",
-      createdBy: "Current User",
-      notes: formData.notes
-    }
+    try {
+      const { error } = await supabase
+        .from('attendance_sessions')
+        .insert({
+          title: formData.title,
+          date: formData.date,
+          type: formData.type,
+          total_members: members.length,
+          present_count: 0,
+          absent_count: members.length,
+          status: "active",
+          created_by: "Current User",
+          notes: formData.notes
+        })
 
-    setSessions([newSession, ...sessions])
-    setFormData({ title: "", type: "Service", date: new Date().toISOString().split('T')[0], notes: "" })
-    setIsDialogOpen(false)
-    
-    toast({
-      title: "Session Created",
-      description: `${formData.title} attendance session has been created.`
-    })
+      if (error) throw error
+
+      await loadSessions()
+      setFormData({ title: "", type: "Service", date: new Date().toISOString().split('T')[0], notes: "" })
+      setIsDialogOpen(false)
+      
+      toast({
+        title: "Session Created",
+        description: `${formData.title} attendance session has been created.`
+      })
+    } catch (error) {
+      console.error('Error creating session:', error)
+      toast({
+        title: "Error",
+        description: "Failed to create session",
+        variant: "destructive"
+      })
+    }
   }
 
   const handleMarkAttendance = (session: AttendanceSession) => {
@@ -199,35 +215,80 @@ const Attendance = () => {
     setSearchTerm(query)
   }
 
-  const saveAttendance = () => {
+  const saveAttendance = async () => {
     if (!currentSession) return
 
     const presentCount = attendanceMembers.filter(m => m.present).length
     const absentCount = attendanceMembers.length - presentCount
 
-    setSessions(sessions.map(session =>
-      session.id === currentSession.id
-        ? { ...session, presentCount, absentCount, status: "completed" as const }
-        : session
-    ))
+    try {
+      // Update session
+      const { error: sessionError } = await supabase
+        .from('attendance_sessions')
+        .update({
+          present_count: presentCount,
+          absent_count: absentCount,
+          status: "completed"
+        })
+        .eq('id', currentSession.id)
 
-    setIsMarkingAttendance(false)
-    setCurrentSession(null)
-    
-    toast({
-      title: "Attendance Saved",
-      description: `Marked ${presentCount} members as present.`
-    })
+      if (sessionError) throw sessionError
+
+      // Save attendance records
+      const attendanceRecords = attendanceMembers.map(member => ({
+        session_id: currentSession.id,
+        member_id: member.id,
+        present: member.present
+      }))
+
+      const { error: recordsError } = await supabase
+        .from('attendance_records')
+        .insert(attendanceRecords)
+
+      if (recordsError) throw recordsError
+
+      await loadSessions()
+      setIsMarkingAttendance(false)
+      setCurrentSession(null)
+      
+      toast({
+        title: "Attendance Saved",
+        description: `Marked ${presentCount} members as present.`
+      })
+    } catch (error) {
+      console.error('Error saving attendance:', error)
+      toast({
+        title: "Error",
+        description: "Failed to save attendance",
+        variant: "destructive"
+      })
+    }
   }
 
-  const handleDelete = (sessionId: string) => {
+  const handleDelete = async (sessionId: string) => {
     const session = sessions.find(s => s.id === sessionId)
     if (session) {
-      setSessions(sessions.filter(s => s.id !== sessionId))
-      toast({
-        title: "Session Deleted",
-        description: `${session.title} has been deleted.`
-      })
+      try {
+        const { error } = await supabase
+          .from('attendance_sessions')
+          .delete()
+          .eq('id', sessionId)
+
+        if (error) throw error
+
+        await loadSessions()
+        toast({
+          title: "Session Deleted",
+          description: `${session.title} has been deleted.`
+        })
+      } catch (error) {
+        console.error('Error deleting session:', error)
+        toast({
+          title: "Error",
+          description: "Failed to delete session",
+          variant: "destructive"
+        })
+      }
     }
   }
 

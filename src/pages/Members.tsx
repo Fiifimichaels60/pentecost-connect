@@ -40,7 +40,9 @@ const Members = () => {
     email: "",
     group: "",
     location: "",
-    dateOfBirth: undefined as Date | undefined
+    day: "",
+    month: "",
+    year: ""
   })
 
   const { toast } = useToast()
@@ -132,7 +134,9 @@ const Members = () => {
             email: formData.email || null,
             group_id: formData.group || null,
             location: formData.location || null,
-            date_of_birth: formData.dateOfBirth?.toISOString().split('T')[0] || null,
+            date_of_birth: (formData.day && formData.month && formData.year) 
+              ? `${formData.year}-${formData.month.padStart(2, '0')}-${formData.day.padStart(2, '0')}` 
+              : null,
           })
           .eq('id', editingMember.id)
 
@@ -152,7 +156,9 @@ const Members = () => {
             email: formData.email || null,
             group_id: formData.group || null,
             location: formData.location || null,
-            date_of_birth: formData.dateOfBirth?.toISOString().split('T')[0] || null,
+            date_of_birth: (formData.day && formData.month && formData.year) 
+              ? `${formData.year}-${formData.month.padStart(2, '0')}-${formData.day.padStart(2, '0')}` 
+              : null,
           })
 
         if (error) throw error
@@ -167,7 +173,7 @@ const Members = () => {
       await loadMembers()
       
       // Reset form
-      setFormData({ name: "", phone: "", email: "", group: "", location: "", dateOfBirth: undefined })
+      setFormData({ name: "", phone: "", email: "", group: "", location: "", day: "", month: "", year: "" })
       setEditingMember(null)
       setIsDialogOpen(false)
     } catch (error) {
@@ -188,7 +194,9 @@ const Members = () => {
       email: member.email,
       group: '',
       location: '',
-      dateOfBirth: undefined
+      day: '',
+      month: '',
+      year: ''
     })
     setIsDialogOpen(true)
   }
@@ -250,7 +258,7 @@ const Members = () => {
 
   const handleNewMember = () => {
     setEditingMember(null)
-    setFormData({ name: "", phone: "", email: "", group: "", location: "", dateOfBirth: undefined })
+    setFormData({ name: "", phone: "", email: "", group: "", location: "", day: "", month: "", year: "" })
     setIsDialogOpen(true)
   }
 
@@ -334,32 +342,65 @@ const Members = () => {
               </div>
               <div className="space-y-2">
                 <Label>Date of Birth</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !formData.dateOfBirth && "text-muted-foreground"
-                      )}
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <Label htmlFor="day" className="text-sm">Day</Label>
+                    <Select 
+                      value={formData.day || ""} 
+                      onValueChange={(value) => setFormData({...formData, day: value})}
                     >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {formData.dateOfBirth ? format(formData.dateOfBirth, "PPP") : <span>Pick a date</span>}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={formData.dateOfBirth}
-                      onSelect={(date) => setFormData({...formData, dateOfBirth: date})}
-                      disabled={(date) =>
-                        date > new Date() || date < new Date("1900-01-01")
-                      }
-                      initialFocus
-                      className={cn("p-3 pointer-events-auto")}
-                    />
-                  </PopoverContent>
-                </Popover>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Day" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
+                          <SelectItem key={day} value={day.toString()}>
+                            {day}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="month" className="text-sm">Month</Label>
+                    <Select 
+                      value={formData.month || ""} 
+                      onValueChange={(value) => setFormData({...formData, month: value})}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Month" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[
+                          "January", "February", "March", "April", "May", "June",
+                          "July", "August", "September", "October", "November", "December"
+                        ].map((month, index) => (
+                          <SelectItem key={index + 1} value={(index + 1).toString()}>
+                            {month}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="year" className="text-sm">Year</Label>
+                    <Select 
+                      value={formData.year || ""} 
+                      onValueChange={(value) => setFormData({...formData, year: value})}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Year" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Array.from({ length: 100 }, (_, i) => new Date().getFullYear() - i).map((year) => (
+                          <SelectItem key={year} value={year.toString()}>
+                            {year}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
               </div>
               <div className="flex space-x-2 pt-4">
                 <Button type="submit" className="flex-1">
