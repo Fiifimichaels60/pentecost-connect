@@ -640,13 +640,15 @@ const Attendance = () => {
             <TableBody>
               {filteredSessions.map((session) => (
                 <TableRow key={session.id}>
-                  <TableCell className="font-medium">{session.title}</TableCell>
+                  <TableCell>
                     <div>
                       <p className="font-medium">{session.title}</p>
                       {session.notes && (
                         <p className="text-sm text-muted-foreground">{session.notes}</p>
                       )}
                     </div>
+                  </TableCell>
+                  <TableCell>
                     {new Date(session.date).toLocaleDateString()}
                   </TableCell>
                   <TableCell>
