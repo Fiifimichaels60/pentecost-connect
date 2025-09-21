@@ -482,12 +482,12 @@ const Compose = () => {
                     <p className="text-muted-foreground">No groups available</p>
                   </div>
                 ) : (
-                {groups.map((group) => (
+                groups.map((group) => (
                   <div key={group.id} className="flex items-center justify-between p-2 border border-border rounded-lg">
                     <span className="font-medium">{group.name}</span>
                     <Badge variant="outline">{group.count}</Badge>
                   </div>
-                ))}
+                ))
                 )}
               </div>
             </CardContent>
