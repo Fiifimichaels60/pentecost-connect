@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { MessageSquare, Users, Phone, Send, Plus, X, Clock, CheckCircle, AlertCircle } from "lucide-react"
+import { MessageSquare, Users, Phone, Send, Plus, X, Clock, CheckCircle, AlertCircle, Loader2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 
@@ -20,6 +20,7 @@ const Compose = () => {
   const [sendingProgress, setSendingProgress] = useState(0)
   const [deliveryStats, setDeliveryStats] = useState({ delivered: 0, failed: 0, pending: 0 })
   const [loadingGroups, setLoadingGroups] = useState(true)
+  const [singleRecipient, setSingleRecipient] = useState("")
   const { toast } = useToast()
 
   const [groups, setGroups] = useState<{id: string, name: string, count: number}[]>([])
@@ -36,21 +37,11 @@ const Compose = () => {
         
         if (error) throw error
         
-        const groupsWithCount = await Promise.all(
-          (data || []).map(async (group) => {
-            const { count } = await supabase
-              .from('anaji_members')
-              .select('*', { count: 'exact', head: true })
-              .eq('group_id', group.id)
-              .eq('status', 'active')
-            
-            return {
-              id: group.id,
-              name: group.name,
-              count: count || 0
-            }
-          })
-        )
+        const groupsWithCount = (data || []).map(group => ({
+          id: group.id,
+          name: group.name,
+          count: group.member_count || 0
+        }))
         
         setGroups(groupsWithCount)
       } catch (error) {
@@ -139,7 +130,13 @@ const Compose = () => {
       return
     }
 
-    const totalRecipients = recipients.length + (selectedGroup ? groups.find(g => g.id === selectedGroup)?.count || 0 : 0)
+    let totalRecipients = recipients.length
+    if (selectedGroup) {
+      totalRecipients += groups.find(g => g.id === selectedGroup)?.count || 0
+    }
+    if (singleRecipient.trim()) {
+      totalRecipients += 1
+    }
     
     if (totalRecipients === 0) {
       toast({
@@ -151,18 +148,28 @@ const Compose = () => {
     }
 
     try {
+      if (sendingStatus === "sending") return // Prevent double sending
+      
       setSendingStatus("sending")
       setSendingProgress(0)
       setDeliveryStats({ delivered: 0, failed: 0, pending: totalRecipients })
 
       // Determine recipient info
-      const recipientType = selectedGroup ? "group" : "manual"
+      let recipientType = "manual"
+      if (selectedGroup) recipientType = "group"
+      else if (singleRecipient.trim()) recipientType = "individual"
+      
       const recipientName = selectedGroup 
         ? groups.find(g => g.id === selectedGroup)?.name || "Unknown Group"
-        : "Manual Recipients"
+        : singleRecipient.trim() ? "Single Recipient" : "Manual Recipients"
 
       // Collect all recipient phone numbers
       let allRecipients: string[] = [...recipients]
+      
+      // Add single recipient if provided
+      if (singleRecipient.trim()) {
+        allRecipients.push(singleRecipient.trim())
+      }
       
       // If a group is selected, get members from that group
       if (selectedGroup) {
@@ -235,6 +242,7 @@ const Compose = () => {
       setRecipients([])
       setSelectedGroup("")
       setManualNumbers("")
+      setSingleRecipient("")
       
     } catch (error) {
       console.error('Error sending SMS campaign:', error)
@@ -248,7 +256,12 @@ const Compose = () => {
   }
 
   const getSMSCount = (text: string) => Math.ceil(text.length / 160)
-  const getTotalRecipients = () => recipients.length + (selectedGroup ? groups.find(g => g.id === selectedGroup)?.count || 0 : 0)
+  const getTotalRecipients = () => {
+    let total = recipients.length
+    if (selectedGroup) total += groups.find(g => g.id === selectedGroup)?.count || 0
+    if (singleRecipient.trim()) total += 1
+    return total
+  }
   const getEstimatedCost = () => (getTotalRecipients() * getSMSCount(message) * 0.05).toFixed(2)
 
   return (
@@ -414,8 +427,10 @@ const Compose = () => {
                 <TabsContent value="single" className="space-y-4">
                   <div className="space-y-2">
                     <Label>Phone Number</Label>
-                    <Input 
-                      placeholder="+233 XX XXX XXXX" 
+                    <Input
+                      placeholder="+233 XX XXX XXXX"
+                      value={singleRecipient}
+                      onChange={(e) => setSingleRecipient(e.target.value)}
                       disabled={sendingStatus === "sending"}
                     />
                   </div>
@@ -482,13 +497,13 @@ const Compose = () => {
                     <p className="text-muted-foreground">No groups available</p>
                   </div>
                 ) : (
-                groups.map((group) => (
+                  groups.map((group) => (
                   <div key={group.id} className="flex items-center justify-between p-2 border border-border rounded-lg">
                     <span className="font-medium">{group.name}</span>
                     <Badge variant="outline">{group.count}</Badge>
                   </div>
                 ))
-                )}
+                ))}
               </div>
             </CardContent>
           </Card>

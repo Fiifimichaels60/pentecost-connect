@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
-import { Users, Plus, Edit, Trash2, Search, UserPlus, Phone, Mail } from "lucide-react"
+import { Users, Plus, Edit, Trash2, Search, UserPlus, Phone, Mail, Send, MessageSquare, Loader2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 
@@ -42,6 +42,9 @@ const Groups = () => {
     description: ""
   })
   const [memberSearchTerm, setMemberSearchTerm] = useState("")
+  const [isSMSDialogOpen, setIsSMSDialogOpen] = useState(false)
+  const [smsMessage, setSmsMessage] = useState("")
+  const [sendingSMS, setSendingSMS] = useState(false)
 
   const { toast } = useToast()
 
@@ -241,6 +244,79 @@ const Groups = () => {
     await loadGroupMembers(group.id)
     await loadAvailableMembers()
     setIsMemberDialogOpen(true)
+  }
+
+  const handleSendGroupSMS = async (group: Group) => {
+    setSelectedGroup(group)
+    setSmsMessage("")
+    setIsSMSDialogOpen(true)
+  }
+
+  const sendGroupSMS = async () => {
+    if (!selectedGroup || !smsMessage.trim()) {
+      toast({
+        title: "Missing Information",
+        description: "Please enter a message to send.",
+        variant: "destructive"
+      })
+      return
+    }
+
+    try {
+      setSendingSMS(true)
+      
+      // Get group members
+      const { data: groupMembers, error: memberError } = await supabase
+        .from('anaji_members')
+        .select('phone')
+        .eq('group_id', selectedGroup.id)
+        .eq('status', 'active')
+      
+      if (memberError) throw memberError
+      
+      const recipients = groupMembers.map(member => member.phone).filter(phone => phone)
+      
+      if (recipients.length === 0) {
+        throw new Error('No active members with phone numbers found in this group')
+      }
+
+      // Call the SMS edge function
+      const { data: result, error: smsError } = await supabase.functions.invoke('send-sms', {
+        body: {
+          campaignName: `Group SMS: ${selectedGroup.name} - ${new Date().toLocaleDateString()}`,
+          message: smsMessage,
+          recipients,
+          recipientType: 'group',
+          recipientName: selectedGroup.name,
+          groupId: selectedGroup.id
+        }
+      })
+
+      if (smsError) throw smsError
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to send SMS')
+      }
+
+      toast({
+        title: "SMS Sent Successfully!",
+        description: `Message sent to ${result.delivered} members in ${selectedGroup.name}.`
+      })
+
+      setIsSMSDialogOpen(false)
+      setSmsMessage("")
+      setSelectedGroup(null)
+      
+    } catch (error) {
+      console.error('Error sending group SMS:', error)
+      toast({
+        title: "SMS Failed",
+        description: error.message || "Failed to send SMS to group.",
+        variant: "destructive"
+      })
+    } finally {
+      setSendingSMS(false)
+    }
   }
 
   const addMemberToGroup = async (memberId: string) => {
@@ -443,6 +519,15 @@ const Groups = () => {
                 <Button 
                   variant="outline" 
                   size="sm"
+                  className="flex-1"
+                  onClick={() => handleSendGroupSMS(group)}
+                >
+                  <Send className="h-4 w-4 mr-1" />
+                  SMS
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
                   onClick={() => handleDelete(group.id)}
                   className="text-destructive hover:text-destructive"
                 >
@@ -567,6 +652,76 @@ const Groups = () => {
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Group SMS Dialog */}
+      <Dialog open={isSMSDialogOpen} onOpenChange={setIsSMSDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Send SMS to {selectedGroup?.name}
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="bg-muted/50 p-3 rounded-lg">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Recipients:</span>
+                <span className="font-medium">{selectedGroup?.memberCount || 0} members</span>
+              </div>
+              <div className="flex items-center justify-between text-sm mt-1">
+                <span className="text-muted-foreground">Estimated Cost:</span>
+                <span className="font-medium text-primary">
+                  GH₵{((selectedGroup?.memberCount || 0) * Math.ceil(smsMessage.length / 160) * 0.05).toFixed(2)}
+                </span>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="sms-message">Message</Label>
+              <Textarea
+                id="sms-message"
+                placeholder="Type your message here..."
+                value={smsMessage}
+                onChange={(e) => setSmsMessage(e.target.value)}
+                className="min-h-32"
+                disabled={sendingSMS}
+              />
+              <div className="flex justify-between text-sm text-muted-foreground">
+                <span>{smsMessage.length} characters</span>
+                <span>{Math.ceil(smsMessage.length / 160)} SMS</span>
+              </div>
+            </div>
+
+            <div className="flex space-x-2 pt-4">
+              <Button 
+                onClick={sendGroupSMS} 
+                className="flex-1"
+                disabled={sendingSMS || !smsMessage.trim()}
+              >
+                {sendingSMS ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4 mr-2" />
+                    Send SMS
+                  </>
+                )}
+              </Button>
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => setIsSMSDialogOpen(false)}
+                disabled={sendingSMS}
+              >
+                Cancel
+              </Button>
             </div>
           </div>
         </DialogContent>

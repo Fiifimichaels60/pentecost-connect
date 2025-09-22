@@ -7,10 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Calendar } from "@/components/ui/calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { UserCheck, Plus, Edit, Trash2, Search, Phone, Mail, Users, CalendarIcon, MapPin } from "lucide-react"
-import { format } from "date-fns"
+import { UserCheck, Plus, Edit, Trash2, Search, Phone, Mail, Users, CalendarIcon, MapPin, Upload, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
@@ -25,6 +22,7 @@ interface Member {
   location: string | null
   date_of_birth: string | null
   status: string
+  image_url: string | null
   created_at: string
 }
 
@@ -45,8 +43,11 @@ const Members = () => {
     location: "",
     day: "",
     month: "",
-    year: ""
+    year: "",
+    imageUrl: ""
   })
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
 
   const { toast } = useToast()
 
@@ -78,6 +79,7 @@ const Members = () => {
         location: member.location,
         date_of_birth: member.date_of_birth,
         status: member.status,
+        image_url: member.image_url,
         created_at: member.created_at,
       }))
 
@@ -128,6 +130,36 @@ const Members = () => {
       return
     }
 
+    let imageUrl = formData.imageUrl
+    
+    // Upload image if provided
+    if (imageFile) {
+      try {
+        const fileExt = imageFile.name.split('.').pop()
+        const fileName = `${Math.random()}.${fileExt}`
+        const filePath = `member-images/${fileName}`
+
+        const { error: uploadError } = await supabase.storage
+          .from('member-images')
+          .upload(filePath, imageFile)
+
+        if (uploadError) throw uploadError
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('member-images')
+          .getPublicUrl(filePath)
+
+        imageUrl = publicUrl
+      } catch (error) {
+        console.error('Error uploading image:', error)
+        toast({
+          title: "Image Upload Failed",
+          description: "Failed to upload image, but member will be saved without image.",
+          variant: "destructive"
+        })
+      }
+    }
+
     try {
       if (editingMember) {
         // Update existing member
@@ -142,6 +174,7 @@ const Members = () => {
             date_of_birth: (formData.day && formData.month && formData.year) 
               ? `${formData.year}-${formData.month.padStart(2, '0')}-${formData.day.padStart(2, '0')}` 
               : null,
+            image_url: imageUrl || null,
           })
           .eq('id', editingMember.id)
 
@@ -164,6 +197,7 @@ const Members = () => {
             date_of_birth: (formData.day && formData.month && formData.year) 
               ? `${formData.year}-${formData.month.padStart(2, '0')}-${formData.day.padStart(2, '0')}` 
               : null,
+            image_url: imageUrl || null,
           })
 
         if (error) throw error
@@ -178,7 +212,9 @@ const Members = () => {
       await loadMembers()
       
       // Reset form
-      setFormData({ name: "", phone: "", email: "", group: "", location: "", day: "", month: "", year: "" })
+      setFormData({ name: "", phone: "", email: "", group: "", location: "", day: "", month: "", year: "", imageUrl: "" })
+      setImageFile(null)
+      setImagePreview(null)
       setEditingMember(null)
       setIsDialogOpen(false)
     } catch (error) {
@@ -211,8 +247,11 @@ const Members = () => {
       location: member.location || '',
       day,
       month,
-      year
+      year,
+      imageUrl: member.image_url || ''
     })
+    setImagePreview(member.image_url)
+    setImageFile(null)
     setIsDialogOpen(true)
   }
 
@@ -274,8 +313,28 @@ const Members = () => {
 
   const handleNewMember = () => {
     setEditingMember(null)
-    setFormData({ name: "", phone: "", email: "", group: "", location: "", day: "", month: "", year: "" })
+    setFormData({ name: "", phone: "", email: "", group: "", location: "", day: "", month: "", year: "", imageUrl: "" })
+    setImageFile(null)
+    setImagePreview(null)
     setIsDialogOpen(true)
+  }
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setImageFile(file)
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        setImagePreview(e.target?.result as string)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const removeImage = () => {
+    setImageFile(null)
+    setImagePreview(null)
+    setFormData({...formData, imageUrl: ""})
   }
 
   return (
@@ -292,13 +351,53 @@ const Members = () => {
               Add Member
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {editingMember ? "Edit Member" : "Add New Member"}
               </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Image Upload Section */}
+              <div className="space-y-2">
+                <Label>Profile Image (Optional)</Label>
+                <div className="flex items-center space-x-4">
+                  {imagePreview ? (
+                    <div className="relative">
+                      <img 
+                        src={imagePreview} 
+                        alt="Preview" 
+                        className="w-20 h-20 rounded-full object-cover border-2 border-border"
+                      />
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0"
+                        onClick={removeImage}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="w-20 h-20 rounded-full bg-muted border-2 border-dashed border-border flex items-center justify-center">
+                      <Upload className="h-6 w-6 text-muted-foreground" />
+                    </div>
+                  )}
+                  <div className="flex-1">
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageChange}
+                      className="cursor-pointer"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Upload a profile image (JPG, PNG, GIF)
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
               <div className="space-y-2">
                 <Label htmlFor="name">Full Name</Label>
                 <Input
@@ -514,7 +613,22 @@ const Members = () => {
                 </TableRow>
               ) : filteredMembers.map((member) => (
                 <TableRow key={member.id}>
-                  <TableCell className="font-medium">{member.name}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center space-x-3">
+                      {member.image_url ? (
+                        <img 
+                          src={member.image_url} 
+                          alt={member.name}
+                          className="w-10 h-10 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                          <UserCheck className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                      )}
+                      <span className="font-medium">{member.name}</span>
+                    </div>
+                  </TableCell>
                   <TableCell>
                     <div className="space-y-1">
                       {member.phone && (

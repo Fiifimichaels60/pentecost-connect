@@ -47,16 +47,31 @@ const Dashboard = () => {
 
   const loadDashboardStats = async () => {
     try {
-      // Get member count from nana_profiles
+      // Get member count from anaji_members
       const { count: memberCount } = await supabase
-        .from('nana_profiles')
+        .from('anaji_members')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'active')
+
+      // Get group count from anaji_groups
+      const { count: groupCount } = await supabase
+        .from('anaji_groups')
         .select('*', { count: 'exact', head: true })
 
-      // Get group count from nana_categories
-      const { count: groupCount } = await supabase
-        .from('nana_categories')
+      // Get SMS count for today
+      const today = new Date().toISOString().split('T')[0]
+      const { count: smsCount } = await supabase
+        .from('anaji_sms_campaigns')
         .select('*', { count: 'exact', head: true })
-        .eq('is_active', true)
+        .gte('created_at', `${today}T00:00:00`)
+        .lte('created_at', `${today}T23:59:59`)
+
+      // Get total SMS for this month
+      const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
+      const { count: monthlyCount } = await supabase
+        .from('anaji_sms_campaigns')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', startOfMonth)
 
       setStats([
         {
@@ -68,7 +83,7 @@ const Dashboard = () => {
         },
         {
           title: "SMS Sent Today",
-          value: "0",
+          value: smsCount?.toString() || "0",
           icon: Send,
           description: "Messages today",
           color: "text-green-600"
@@ -82,7 +97,7 @@ const Dashboard = () => {
         },
         {
           title: "This Month",
-          value: "0",
+          value: monthlyCount?.toString() || "0",
           icon: TrendingUp,
           description: "Total SMS sent",
           color: "text-orange-600"
@@ -95,16 +110,16 @@ const Dashboard = () => {
 
   const loadRecentActivity = async () => {
     try {
-      // Get recent member additions for now
+      // Get recent member additions
       const { data: recentMembers } = await supabase
-        .from('nana_profiles')
-        .select('first_name, last_name, created_at')
+        .from('anaji_members')
+        .select('name, created_at')
         .order('created_at', { ascending: false })
         .limit(3)
 
       const formattedActivity = (recentMembers || []).map(member => ({
         title: "New Member Added",
-        description: `${member.first_name} ${member.last_name} joined the system`,
+        description: `${member.name} joined the system`,
         time: formatRelativeTime(member.created_at)
       }))
 
