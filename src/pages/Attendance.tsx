@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Calendar, Plus, Edit, Trash2, Search, Download, Users, CheckCircle, Clock, UserCheck, AlertCircle, FileText } from "lucide-react"
+import { Calendar, Plus, Edit, Trash2, Search, Download, Users, CheckCircle, Clock, UserCheck, AlertCircle, FileText, CalendarIcon, Filter } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 
@@ -17,6 +17,8 @@ interface AttendanceSession {
   title: string
   date: string
   type: string
+  group_id: string | null
+  group_name: string | null
   totalMembers: number
   presentCount: number
   absentCount: number
@@ -43,13 +45,31 @@ const Attendance = () => {
   useEffect(() => {
     loadSessions()
     loadMembers()
+    loadGroups()
   }, [])
+
+  const loadGroups = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('anaji_groups')
+        .select('id, name')
+        .order('name')
+
+      if (error) throw error
+      setGroups(data || [])
+    } catch (error) {
+      console.error('Error loading groups:', error)
+    }
+  }
 
   const loadSessions = async () => {
     try {
       const { data, error } = await supabase
         .from('attendance_sessions')
-        .select('*')
+        .select(`
+          *,
+          anaji_groups(name)
+        `)
         .order('created_at', { ascending: false })
 
       if (error) throw error
@@ -59,6 +79,8 @@ const Attendance = () => {
         title: session.title,
         date: session.date,
         type: session.type,
+        group_id: session.group_id,
+        group_name: session.anaji_groups?.name || null,
         totalMembers: session.total_members,
         presentCount: session.present_count,
         absentCount: session.absent_count,
@@ -111,16 +133,20 @@ const Attendance = () => {
   const [attendanceMembers, setAttendanceMembers] = useState<Member[]>([])
   const [bulkAction, setBulkAction] = useState<"present" | "absent" | null>(null)
   const [formData, setFormData] = useState({
-    title: "",
+    name: "",
+    description: "",
     type: "Service",
     date: new Date().toISOString().split('T')[0],
-    notes: ""
+    notes: "",
+    groupId: ""
   })
+  const [groups, setGroups] = useState<{id: string, name: string}[]>([])
+  const [dateFilter, setDateFilter] = useState("")
 
   const { toast } = useToast()
 
   const sessionTypes = ["Service", "Meeting", "Prayer", "Event", "Training"]
-  const groups = ["Men's Fellowship", "Women's Fellowship", "Youth Ministry", "Church Choir", "Ushering Team"]
+  const groupsOld = ["Men's Fellowship", "Women's Fellowship", "Youth Ministry", "Church Choir", "Ushering Team"]
 
   const filteredSessions = sessions.filter(session =>
     session.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -136,7 +162,7 @@ const Attendance = () => {
   const handleCreateSession = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!formData.title.trim()) {
+    if (!formData.name.trim()) {
       toast({
         title: "Title Required",
         description: "Please enter a session title.",
@@ -149,12 +175,13 @@ const Attendance = () => {
       const { error } = await supabase
         .from('attendance_sessions')
         .insert({
-          title: formData.title,
+          title: formData.name,
           date: formData.date,
           type: formData.type,
-          total_members: members.length,
+          group_id: formData.groupId || null,
+          total_members: formData.groupId ? groups.find(g => g.id === formData.groupId)?.member_count || 0 : 0,
           present_count: 0,
-          absent_count: members.length,
+          absent_count: formData.groupId ? groups.find(g => g.id === formData.groupId)?.member_count || 0 : 0,
           status: "active",
           created_by: "Current User",
           notes: formData.notes
@@ -163,12 +190,12 @@ const Attendance = () => {
       if (error) throw error
 
       await loadSessions()
-      setFormData({ title: "", type: "Service", date: new Date().toISOString().split('T')[0], notes: "" })
+      setFormData({ name: "", description: "", type: "Service", date: new Date().toISOString().split('T')[0], notes: "", groupId: "" })
       setIsDialogOpen(false)
       
       toast({
         title: "Session Created",
-        description: `${formData.title} attendance session has been created.`
+        description: `${formData.name} attendance session has been created.`
       })
     } catch (error) {
       console.error('Error creating session:', error)
@@ -182,10 +209,54 @@ const Attendance = () => {
 
   const handleMarkAttendance = (session: AttendanceSession) => {
     setCurrentSession(session)
-    setAttendanceMembers(members.map(m => ({ ...m, present: false })))
+    loadSessionMembers(session)
     setIsMarkingAttendance(true)
     setSearchTerm("")
     setFilterGroup("all")
+  }
+
+  const loadSessionMembers = async (session: AttendanceSession) => {
+    try {
+      setLoadingMembers(true)
+      
+      let query = supabase
+        .from('anaji_members')
+        .select(`
+          *,
+          anaji_groups(name)
+        `)
+        .eq('status', 'active')
+        .order('name')
+      
+      // If session has a specific group, filter by that group
+      if (session.group_id) {
+        query = query.eq('group_id', session.group_id)
+      }
+      
+      const { data, error } = await query
+      
+      if (error) throw error
+      
+      const formattedMembers = (data || []).map(member => ({
+        id: member.id,
+        name: member.name,
+        group: member.anaji_groups?.name || "No Group",
+        present: false,
+        phone: member.phone,
+        lastAttended: "2024-01-01" // This would come from attendance records
+      }))
+      
+      setAttendanceMembers(formattedMembers)
+    } catch (error) {
+      console.error('Error loading session members:', error)
+      toast({
+        title: "Error",
+        description: "Failed to load session members",
+        variant: "destructive"
+      })
+    } finally {
+      setLoadingMembers(false)
+    }
   }
 
   const toggleMemberAttendance = (memberId: string) => {
@@ -293,9 +364,76 @@ const Attendance = () => {
   }
 
   const handleExport = (format: "csv" | "pdf") => {
+    if (format === "csv") {
+      exportToCSV()
+    } else {
+      toast({
+        title: "PDF Export",
+        description: "PDF export feature coming soon!"
+      })
+    }
+  }
+
+  const exportToCSV = () => {
+    const filteredData = dateFilter 
+      ? sessions.filter(s => s.date === dateFilter)
+      : sessions
+    
+    const csvContent = [
+      ['Session Title', 'Date', 'Type', 'Group', 'Total Members', 'Present', 'Absent', 'Attendance Rate', 'Status'].join(','),
+      ...filteredData.map(session => [
+        session.title,
+        session.date,
+        session.type,
+        session.group_name || 'All Members',
+        session.totalMembers,
+        session.presentCount,
+        session.absentCount,
+        `${session.totalMembers > 0 ? Math.round((session.presentCount / session.totalMembers) * 100) : 0}%`,
+        session.status
+      ].join(','))
+    ].join('\n')
+
+    const blob = new Blob([csvContent], { type: 'text/csv' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `attendance-report-${dateFilter || 'all'}-${new Date().toISOString().split('T')[0]}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    window.URL.revokeObjectURL(url)
+
     toast({
-      title: "Export Started",
-      description: `Exporting attendance data as ${format.toUpperCase()}...`
+      title: "Export Complete",
+      description: "Attendance data exported successfully."
+    })
+  }
+
+  const exportSessionCSV = (session: AttendanceSession) => {
+    const csvContent = [
+      ['Member Name', 'Group', 'Phone', 'Status'].join(','),
+      ...attendanceMembers.map(member => [
+        member.name,
+        member.group,
+        member.phone || '',
+        member.present ? 'Present' : 'Absent'
+      ].join(','))
+    ].join('\n')
+
+    const blob = new Blob([csvContent], { type: 'text/csv' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${session.title}-${session.date}-attendance.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    window.URL.revokeObjectURL(url)
+
+    toast({
+      title: "Session Exported",
+      description: `${session.title} attendance exported successfully.`
     })
   }
 
@@ -399,7 +537,7 @@ const Attendance = () => {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Groups</SelectItem>
-              {groups.map((group) => (
+              {groupsOld.map((group) => (
                 <SelectItem key={group} value={group}>
                   {group}
                 </SelectItem>
@@ -431,7 +569,7 @@ const Attendance = () => {
           <Button variant="outline" size="sm" onClick={() => handleQuickSearch("")}>
             All Members
           </Button>
-          {groups.map((group) => (
+          {groupsOld.map((group) => (
             <Button 
               key={group} 
               variant="outline" 
@@ -521,11 +659,11 @@ const Attendance = () => {
             </DialogHeader>
             <form onSubmit={handleCreateSession} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="title">Session Title</Label>
+                <Label htmlFor="name">Session Title</Label>
                 <Input
-                  id="title"
-                  value={formData.title}
-                  onChange={(e) => setFormData({...formData, title: e.target.value})}
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => setFormData({...formData, name: e.target.value})}
                   placeholder="e.g., Sunday Service, Prayer Meeting"
                   required
                 />
@@ -543,6 +681,25 @@ const Attendance = () => {
                     {sessionTypes.map((type) => (
                       <SelectItem key={type} value={type}>
                         {type}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="groupId">Group (Optional)</Label>
+                <Select 
+                  value={formData.groupId} 
+                  onValueChange={(value) => setFormData({...formData, groupId: value})}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a group or leave empty for all members" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">All Members</SelectItem>
+                    {groups.map((group) => (
+                      <SelectItem key={group.id} value={group.id}>
+                        {group.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -671,14 +828,26 @@ const Attendance = () => {
             className="pl-10"
           />
         </div>
+        <div className="relative">
+          <CalendarIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            type="date"
+            placeholder="Filter by date"
+            value={dateFilter}
+            onChange={(e) => setDateFilter(e.target.value)}
+            className="pl-10 w-full sm:w-48"
+          />
+        </div>
         <div className="flex space-x-2">
+          {dateFilter && (
+            <Button variant="outline" onClick={() => setDateFilter("")}>
+              <Filter className="h-4 w-4 mr-2" />
+              Clear Date
+            </Button>
+          )}
           <Button variant="outline" onClick={() => handleExport("csv")}>
             <Download className="h-4 w-4 mr-2" />
             Export CSV
-          </Button>
-          <Button variant="outline" onClick={() => handleExport("pdf")}>
-            <FileText className="h-4 w-4 mr-2" />
-            Generate Report
           </Button>
         </div>
       </div>
@@ -692,6 +861,7 @@ const Attendance = () => {
                 <TableHead>Session</TableHead>
                 <TableHead>Date</TableHead>
                 <TableHead>Type</TableHead>
+                <TableHead>Group</TableHead>
                 <TableHead>Attendance</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Created By</TableHead>
@@ -699,7 +869,9 @@ const Attendance = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredSessions.map((session) => (
+              {filteredSessions
+                .filter(session => !dateFilter || session.date === dateFilter)
+                .map((session) => (
                 <TableRow key={session.id}>
                   <TableCell>
                     <div>
@@ -714,6 +886,13 @@ const Attendance = () => {
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline">{session.type}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    {session.group_name ? (
+                      <Badge variant="secondary">{session.group_name}</Badge>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">All Members</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <div className="space-y-1">
@@ -755,6 +934,7 @@ const Attendance = () => {
                         <Button 
                           variant="ghost" 
                           size="sm"
+                          onClick={() => exportSessionCSV(session)}
                         >
                           <FileText className="h-4 w-4" />
                         </Button>
