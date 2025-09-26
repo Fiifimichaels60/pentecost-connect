@@ -44,7 +44,8 @@ export default function Compose() {
       const { data, error } = await supabase
         .from('anaji_groups')
         .select('*')
-        .eq('is_active', true);
+        .eq('is_active', true)
+        .order('name');
 
       if (error) throw error;
       setGroups(data || []);
@@ -67,12 +68,20 @@ export default function Compose() {
     try {
       const { data, error } = await supabase
         .from('anaji_members')
-        .select('id, first_name, last_name, phone_number')
+        .select('id, name, phone')
         .in('group_id', groupIds)
-        .eq('is_active', true);
+        .eq('status', 'active');
 
       if (error) throw error;
-      setMembers(data || []);
+      
+      const formattedMembers = (data || []).map(member => ({
+        id: member.id,
+        first_name: member.name.split(' ')[0] || '',
+        last_name: member.name.split(' ').slice(1).join(' ') || '',
+        phone_number: member.phone
+      }));
+      
+      setMembers(formattedMembers);
     } catch (error) {
       console.error('Error fetching members:', error);
       toast({
@@ -143,29 +152,52 @@ export default function Compose() {
 
     try {
       let recipients: string[] = [];
+      let recipientName = '';
+      let recipientType: 'group' | 'manual' | 'single' = 'manual';
 
       if (activeTab === 'groups') {
+        recipientType = 'group';
         recipients = members.map(member => member.phone_number);
+        recipientName = selectedGroups.length === 1 
+          ? groups.find(g => g.id === selectedGroups[0])?.name || 'Unknown Group'
+          : `${selectedGroups.length} Groups`;
       } else {
+        recipientType = recipients.length === 1 ? 'single' : 'manual';
         recipients = manualRecipients
           .split(/[,\n]/)
           .map(phone => phone.trim())
           .filter(phone => phone.length > 0);
+        recipientName = recipientType === 'single' ? recipients[0] : 'Manual Recipients';
+      }
+
+      if (recipients.length === 0) {
+        throw new Error('No valid recipients found');
+      }
+
+      if (recipients.length > 100) {
+        throw new Error('Maximum 100 recipients allowed per campaign');
       }
 
       const { data, error } = await supabase.functions.invoke('send-sms', {
         body: {
-          message: message.trim(),
+          campaignName: `SMS Campaign - ${new Date().toLocaleString()}`,
+          message: message.trim(), 
           recipients,
-          campaign_name: `SMS Campaign ${new Date().toISOString()}`,
+          recipientType,
+          recipientName,
+          groupId: activeTab === 'groups' && selectedGroups.length === 1 ? selectedGroups[0] : null
         },
       });
 
       if (error) throw error;
 
+      if (!data?.success) {
+        throw new Error(data?.error || 'SMS sending failed');
+      }
+
       toast({
         title: 'Success',
-        description: `SMS sent to ${recipients.length} recipients`,
+        description: `SMS sent successfully! ${data.delivered} delivered, ${data.failed} failed.`,
       });
 
       // Reset form

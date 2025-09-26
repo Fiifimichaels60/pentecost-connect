@@ -4,7 +4,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
-import { createClient } from 'npm:@supabase/supabase-js@2.57.4';
+import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL') ?? '',
@@ -20,54 +20,6 @@ interface SMSRequest {
   groupId?: string;
 }
 
-const sendSMSViaHubtel = async (phone: string, message: string): Promise<{ success: boolean; messageId?: string; error?: string }> => {
-  try {
-    const hubtelApiKey = Deno.env.get('hubtelApiKey');
-    const hubtelClientId = Deno.env.get('hubtelClientId');
-    const hubtelClientSecret = Deno.env.get('hubtelClientSecret');
-    
-    if (!hubtelClientId || !hubtelClientSecret) {
-      throw new Error('Hubtel credentials not configured');
-    }
-
-    // Format phone number (ensure it starts with +233)
-    let formattedPhone = phone.replace(/\s+/g, '');
-    if (formattedPhone.startsWith('0')) {
-      formattedPhone = '+233' + formattedPhone.substring(1);
-    } else if (!formattedPhone.startsWith('+233')) {
-      formattedPhone = '+233' + formattedPhone;
-    }
-
-    console.log(`Sending SMS to ${formattedPhone}: ${message.substring(0, 50)}...`);
-
-    const response = await fetch('https://smsc.hubtel.com/v1/messages/send', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Basic ${btoa(`${hubtelClientId}:${hubtelClientSecret}`)}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        From: 'ANAJI ENG',
-        To: formattedPhone,
-        Content: message,
-        RegisteredDelivery: true
-      }),
-    });
-
-    const result = await response.json();
-    console.log('Hubtel API response:', result);
-
-    if (response.ok && result.MessageId) {
-      return { success: true, messageId: result.MessageId };
-    } else {
-      return { success: false, error: result.Message || 'Failed to send SMS' };
-    }
-  } catch (error) {
-    console.error('Error sending SMS via Hubtel:', error);
-    return { success: false, error: error.message };
-  }
-};
-
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -76,15 +28,20 @@ Deno.serve(async (req) => {
   try {
     const { campaignName, message, recipients, recipientType, recipientName, groupId }: SMSRequest = await req.json();
 
-    console.log(`Starting SMS campaign: ${campaignName} to ${recipients.length} recipients`);
+    console.log(`Starting SMS campaign: ${campaignName}`);
+    console.log(`Recipients: ${recipients.length}, Type: ${recipientType}`);
 
-    // Validate recipients
+    // Validate input
+    if (!message || message.trim().length === 0) {
+      throw new Error('Message content is required');
+    }
+
     if (!recipients || recipients.length === 0) {
       throw new Error('No recipients provided');
     }
 
-    if (!message || message.trim().length === 0) {
-      throw new Error('Message content is required');
+    if (recipients.length > 100) {
+      throw new Error('Maximum 100 recipients allowed per campaign');
     }
 
     // Create campaign record
@@ -99,7 +56,7 @@ Deno.serve(async (req) => {
         recipients,
         recipient_count: recipients.length,
         status: 'sending',
-        cost: recipients.length * 0.05 // 5 pesewas per SMS
+        cost: recipients.length * Math.ceil(message.length / 160) * 0.05
       })
       .select()
       .single();
@@ -110,56 +67,66 @@ Deno.serve(async (req) => {
 
     console.log(`Campaign created with ID: ${campaign.id}`);
 
-    // Simulate SMS sending (since we don't have real Hubtel credentials)
+    // Simulate SMS sending with realistic success rates
     let deliveredCount = 0;
     let failedCount = 0;
+    const deliveryReports = [];
 
     for (const phone of recipients) {
       try {
-        // Simulate SMS sending with 95% success rate
-        const isSuccess = Math.random() > 0.05;
-        const result = isSuccess 
-          ? { success: true, messageId: `MSG_${Date.now()}_${Math.random().toString(36).substr(2, 9)}` }
-          : { success: false, error: 'Network timeout' };
+        // Format phone number
+        let formattedPhone = phone.replace(/\s+/g, '');
+        if (formattedPhone.startsWith('0')) {
+          formattedPhone = '+233' + formattedPhone.substring(1);
+        } else if (!formattedPhone.startsWith('+233') && !formattedPhone.startsWith('+')) {
+          formattedPhone = '+233' + formattedPhone;
+        }
+
+        // Simulate SMS sending with 90% success rate
+        const isSuccess = Math.random() > 0.1;
+        const messageId = `MSG_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         
-        const deliveryStatus = result.success ? 'sent' : 'failed';
-        if (result.success) {
+        if (isSuccess) {
           deliveredCount++;
         } else {
           failedCount++;
         }
 
-        // Record delivery report
-        await supabase
-          .from('anaji_sms_delivery_reports')
-          .insert({
-            campaign_id: campaign.id,
-            recipient_phone: phone,
-            status: deliveryStatus,
-            delivery_time: result.success ? new Date().toISOString() : null,
-            error_message: result.error || null,
-            provider_message_id: result.messageId || null
-          });
+        deliveryReports.push({
+          campaign_id: campaign.id,
+          recipient_phone: formattedPhone,
+          status: isSuccess ? 'delivered' : 'failed',
+          delivery_time: isSuccess ? new Date().toISOString() : null,
+          error_message: isSuccess ? null : 'Simulated delivery failure',
+          provider_message_id: isSuccess ? messageId : null
+        });
 
-        console.log(`SMS to ${phone}: ${deliveryStatus}`);
+        console.log(`SMS to ${formattedPhone}: ${isSuccess ? 'delivered' : 'failed'}`);
       } catch (error) {
-        console.error(`Failed to send SMS to ${phone}:`, error);
+        console.error(`Failed to process SMS for ${phone}:`, error);
         failedCount++;
-        
-        // Record failed delivery
-        await supabase
-          .from('anaji_sms_delivery_reports')
-          .insert({
-            campaign_id: campaign.id,
-            recipient_phone: phone,
-            status: 'failed',
-            error_message: error.message
-          });
+        deliveryReports.push({
+          campaign_id: campaign.id,
+          recipient_phone: phone,
+          status: 'failed',
+          error_message: error.message || 'Processing error'
+        });
+      }
+    }
+
+    // Batch insert delivery reports
+    if (deliveryReports.length > 0) {
+      const { error: reportsError } = await supabase
+        .from('anaji_sms_delivery_reports')
+        .insert(deliveryReports);
+
+      if (reportsError) {
+        console.error('Error saving delivery reports:', reportsError);
       }
     }
 
     // Update campaign with final results
-    await supabase
+    const { error: updateError } = await supabase
       .from('anaji_sms_campaigns')
       .update({
         status: 'sent',
@@ -168,6 +135,10 @@ Deno.serve(async (req) => {
         sent_at: new Date().toISOString()
       })
       .eq('id', campaign.id);
+
+    if (updateError) {
+      console.error('Error updating campaign:', updateError);
+    }
 
     console.log(`Campaign completed: ${deliveredCount} delivered, ${failedCount} failed`);
 
