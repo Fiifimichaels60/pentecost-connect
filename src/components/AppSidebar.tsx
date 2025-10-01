@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { 
   MessageSquare, 
   Users, 
@@ -9,9 +9,10 @@ import {
   History, 
   Settings,
   Home,
-  Menu
+  Shield
 } from "lucide-react"
 import { NavLink, useLocation } from "react-router-dom"
+import { useAdminPermissions } from "@/hooks/useAdminPermissions"
 
 import {
   Sidebar,
@@ -23,20 +24,20 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar"
 
 const menuItems = [
-  { title: "Dashboard", url: "/", icon: Home },
-  { title: "Compose", url: "/compose", icon: MessageSquare },
-  { title: "Groups", url: "/groups", icon: Users },
-  { title: "Members", url: "/members", icon: UserCheck },
-  { title: "Attendance", url: "/attendance", icon: Calendar },
-  { title: "Birthday", url: "/birthday", icon: Cake },
-  { title: "Templates", url: "/templates", icon: FileText },
-  { title: "History", url: "/history", icon: History },
-  { title: "Settings", url: "/settings", icon: Settings },
+  { title: "Dashboard", url: "/", icon: Home, permission: "dashboard" },
+  { title: "Compose", url: "/compose", icon: MessageSquare, permission: "compose" },
+  { title: "Groups", url: "/groups", icon: Users, permission: "groups" },
+  { title: "Members", url: "/members", icon: UserCheck, permission: "members" },
+  { title: "Attendance", url: "/attendance", icon: Calendar, permission: "attendance" },
+  { title: "Birthday", url: "/birthday", icon: Cake, permission: "birthday" },
+  { title: "Templates", url: "/templates", icon: FileText, permission: "templates" },
+  { title: "History", url: "/history", icon: History, permission: "history" },
+  { title: "Admin Management", url: "/admin-management", icon: Shield, permission: "admin_management" },
+  { title: "Settings", url: "/settings", icon: Settings, permission: "settings" },
 ]
 
 export function AppSidebar() {
@@ -44,6 +45,7 @@ export function AppSidebar() {
   const location = useLocation()
   const currentPath = location.pathname
   const isCollapsed = state === "collapsed"
+  const { hasPermission, isSuperAdmin, loading } = useAdminPermissions()
 
   const isActive = (path: string) => {
     if (path === "/") return currentPath === "/"
@@ -54,6 +56,27 @@ export function AppSidebar() {
     isActive(path) 
       ? "bg-primary text-primary-foreground font-medium shadow-sm" 
       : "hover:bg-accent hover:text-accent-foreground transition-colors"
+
+  // Filter menu items based on permissions
+  const visibleMenuItems = menuItems.filter(item => {
+    // Super admin sees everything
+    if (isSuperAdmin) return true;
+    
+    // Check if user has permission for this menu item
+    return hasPermission(item.permission);
+  });
+
+  if (loading) {
+    return (
+      <Sidebar className={isCollapsed ? "w-16" : "w-64"} collapsible="icon">
+        <SidebarHeader className="border-b border-border p-4">
+          <div className="flex items-center justify-center">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+          </div>
+        </SidebarHeader>
+      </Sidebar>
+    );
+  }
 
   return (
     <Sidebar className={isCollapsed ? "w-16" : "w-64"} collapsible="icon">
@@ -78,7 +101,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>Menu</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {menuItems.map((item) => (
+              {visibleMenuItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild className={getNavCls(item.url)}>
                     <NavLink to={item.url} end={item.url === "/"}>

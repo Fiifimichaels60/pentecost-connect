@@ -16,6 +16,7 @@ import Birthday from "./pages/Birthday";
 import Templates from "./pages/Templates";
 import History from "./pages/History";
 import Settings from "./pages/Settings";
+import AdminManagement from "./pages/AdminManagement";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -79,6 +80,7 @@ const MainLayout = () => {
               <Route path="/birthday" element={<Birthday />} />
               <Route path="/templates" element={<Templates />} />
               <Route path="/history" element={<History />} />
+              <Route path="/admin-management" element={<AdminManagement />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="*" element={<NotFound />} />
             </Routes>

@@ -44,7 +44,9 @@ const Members = () => {
     day: "",
     month: "",
     year: "",
-    imageUrl: ""
+    imageUrl: "",
+    emergencyContactName: "",
+    emergencyContactPhone: ""
   })
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
@@ -175,6 +177,8 @@ const Members = () => {
               ? `${formData.year}-${formData.month.padStart(2, '0')}-${formData.day.padStart(2, '0')}` 
               : null,
             image_url: imageUrl || null,
+            emergency_contact_name: formData.emergencyContactName || null,
+            emergency_contact_phone: formData.emergencyContactPhone || null,
           })
           .eq('id', editingMember.id)
 
@@ -198,6 +202,8 @@ const Members = () => {
               ? `${formData.year}-${formData.month.padStart(2, '0')}-${formData.day.padStart(2, '0')}` 
               : null,
             image_url: imageUrl || null,
+            emergency_contact_name: formData.emergencyContactName || null,
+            emergency_contact_phone: formData.emergencyContactPhone || null,
           })
 
         if (error) throw error
@@ -212,7 +218,7 @@ const Members = () => {
       await loadMembers()
       
       // Reset form
-      setFormData({ name: "", phone: "", email: "", group: "", location: "", day: "", month: "", year: "", imageUrl: "" })
+      setFormData({ name: "", phone: "", email: "", group: "", location: "", day: "", month: "", year: "", imageUrl: "", emergencyContactName: "", emergencyContactPhone: "" })
       setImageFile(null)
       setImagePreview(null)
       setEditingMember(null)
@@ -248,7 +254,9 @@ const Members = () => {
       day,
       month,
       year,
-      imageUrl: member.image_url || ''
+      imageUrl: member.image_url || '',
+      emergencyContactName: (member as any).emergency_contact_name || '',
+      emergencyContactPhone: (member as any).emergency_contact_phone || ''
     })
     setImagePreview(member.image_url)
     setImageFile(null)
@@ -313,7 +321,7 @@ const Members = () => {
 
   const handleNewMember = () => {
     setEditingMember(null)
-    setFormData({ name: "", phone: "", email: "", group: "", location: "", day: "", month: "", year: "", imageUrl: "" })
+    setFormData({ name: "", phone: "", email: "", group: "", location: "", day: "", month: "", year: "", imageUrl: "", emergencyContactName: "", emergencyContactPhone: "" })
     setImageFile(null)
     setImagePreview(null)
     setIsDialogOpen(true)
@@ -514,6 +522,29 @@ const Members = () => {
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-base font-semibold">Emergency Contact</Label>
+                <div className="space-y-3 p-4 border border-border rounded-lg bg-muted/30">
+                  <div className="space-y-2">
+                    <Label htmlFor="emergencyContactName">Full Name</Label>
+                    <Input
+                      id="emergencyContactName"
+                      value={formData.emergencyContactName}
+                      onChange={(e) => setFormData({...formData, emergencyContactName: e.target.value})}
+                      placeholder="Enter emergency contact name"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="emergencyContactPhone">Phone Number</Label>
+                    <Input
+                      id="emergencyContactPhone"
+                      value={formData.emergencyContactPhone}
+                      onChange={(e) => setFormData({...formData, emergencyContactPhone: e.target.value})}
+                      placeholder="+233 XX XXX XXXX"
+                    />
                   </div>
                 </div>
               </div>
