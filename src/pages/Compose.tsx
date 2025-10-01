@@ -43,8 +43,7 @@ export default function Compose() {
     try {
       const { data, error } = await supabase
         .from('anaji_groups')
-        .select('*')
-        .eq('is_active', true)
+        .select('id, name, description, member_count')
         .order('name');
 
       if (error) throw error;

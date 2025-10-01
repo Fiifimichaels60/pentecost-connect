@@ -40,6 +40,7 @@ const Attendance = () => {
   const [sessions, setSessions] = useState<AttendanceSession[]>([])
   const [members, setMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingMembers, setLoadingMembers] = useState(false)
 
   // Load data from database
   useEffect(() => {
@@ -52,7 +53,7 @@ const Attendance = () => {
     try {
       const { data, error } = await supabase
         .from('anaji_groups')
-        .select('id, name')
+        .select('id, name, member_count')
         .order('name')
 
       if (error) throw error
@@ -140,7 +141,7 @@ const Attendance = () => {
     notes: "",
     groupId: ""
   })
-  const [groups, setGroups] = useState<{id: string, name: string}[]>([])
+  const [groups, setGroups] = useState<{id: string, name: string, member_count?: number}[]>([])
   const [dateFilter, setDateFilter] = useState("")
 
   const { toast } = useToast()
@@ -379,7 +380,27 @@ const Attendance = () => {
       ? sessions.filter(s => s.date === dateFilter)
       : sessions
     
+    if (filteredData.length === 0) {
+      toast({
+        title: "No Data to Export",
+        description: dateFilter ? `No sessions found for ${new Date(dateFilter).toLocaleDateString()}` : "No sessions available to export.",
+        variant: "destructive"
+      })
+      return
+    }
+
+    // Calculate summary for filtered data
+    const totalPresent = filteredData.reduce((sum, s) => sum + s.presentCount, 0)
+    const totalMembers = filteredData.reduce((sum, s) => sum + s.totalMembers, 0)
+    const avgAttendance = totalMembers > 0 ? Math.round((totalPresent / totalMembers) * 100) : 0
+    
     const csvContent = [
+      dateFilter ? `Report Date: ${new Date(dateFilter).toLocaleDateString()}` : 'Report: All Sessions',
+      `Total Sessions: ${filteredData.length}`,
+      `Total Present: ${totalPresent}`,
+      `Total Members: ${totalMembers}`,
+      `Average Attendance: ${avgAttendance}%`,
+      '',
       ['Session Title', 'Date', 'Type', 'Group', 'Total Members', 'Present', 'Absent', 'Attendance Rate', 'Status'].join(','),
       ...filteredData.map(session => [
         session.title,
@@ -406,7 +427,7 @@ const Attendance = () => {
 
     toast({
       title: "Export Complete",
-      description: "Attendance data exported successfully."
+      description: `Exported ${filteredData.length} session(s) with ${avgAttendance}% average attendance.`
     })
   }
 

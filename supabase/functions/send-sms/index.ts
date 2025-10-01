@@ -109,7 +109,7 @@ Deno.serve(async (req) => {
           campaign_id: campaign.id,
           recipient_phone: phone,
           status: 'failed',
-          error_message: error.message || 'Processing error'
+          error_message: error instanceof Error ? error.message : 'Processing error'
         });
       }
     }
@@ -157,7 +157,7 @@ Deno.serve(async (req) => {
     console.error('Error in send-sms function:', error);
     return new Response(JSON.stringify({ 
       success: false, 
-      error: error.message 
+      error: error instanceof Error ? error.message : 'Unknown error' 
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

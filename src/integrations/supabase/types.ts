@@ -110,6 +110,7 @@ export type Database = {
           email: string | null
           group_id: string | null
           id: string
+          image_url: string | null
           location: string | null
           name: string
           phone: string
@@ -122,6 +123,7 @@ export type Database = {
           email?: string | null
           group_id?: string | null
           id?: string
+          image_url?: string | null
           location?: string | null
           name: string
           phone: string
@@ -134,6 +136,7 @@ export type Database = {
           email?: string | null
           group_id?: string | null
           id?: string
+          image_url?: string | null
           location?: string | null
           name?: string
           phone?: string
@@ -293,6 +296,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           date: string
+          group_id: string | null
           id: string
           notes: string | null
           present_count: number
@@ -307,6 +311,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           date: string
+          group_id?: string | null
           id?: string
           notes?: string | null
           present_count?: number
@@ -321,6 +326,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           date?: string
+          group_id?: string | null
           id?: string
           notes?: string | null
           present_count?: number
@@ -330,7 +336,15 @@ export type Database = {
           type?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "attendance_sessions_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "anaji_groups"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       categories: {
         Row: {
