@@ -45,7 +45,7 @@ export function AppSidebar() {
   const location = useLocation()
   const currentPath = location.pathname
   const isCollapsed = state === "collapsed"
-  const { hasPermission, isSuperAdmin, loading } = useAdminPermissions()
+  const { hasPermission, isSuperAdmin, isAdmin, loading } = useAdminPermissions()
 
   const isActive = (path: string) => {
     if (path === "/") return currentPath === "/"
@@ -61,12 +61,14 @@ export function AppSidebar() {
   const visibleMenuItems = menuItems.filter(item => {
     // Super admin sees everything
     if (isSuperAdmin) return true;
-    
-    // Regular admins need specific permissions
-    // If not authenticated or not an admin, show no menu items
-    if (!hasPermission(item.permission)) return false;
-    
-    return true;
+
+    // If user is not registered as an admin, show basic menus (hide admin management)
+    if (!isAdmin) {
+      return item.permission !== "admin_management";
+    }
+
+    // Admins need explicit permission per item
+    return hasPermission(item.permission);
   });
 
   if (loading) {
