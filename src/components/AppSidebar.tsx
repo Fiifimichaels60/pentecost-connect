@@ -62,8 +62,11 @@ export function AppSidebar() {
     // Super admin sees everything
     if (isSuperAdmin) return true;
     
-    // Check if user has permission for this menu item
-    return hasPermission(item.permission);
+    // Regular admins need specific permissions
+    // If not authenticated or not an admin, show no menu items
+    if (!hasPermission(item.permission)) return false;
+    
+    return true;
   });
 
   if (loading) {

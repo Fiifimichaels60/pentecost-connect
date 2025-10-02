@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { UserCheck, Plus, Edit, Trash2, Search, Phone, Mail, Users, CalendarIcon, MapPin, Upload, X } from "lucide-react"
+import { UserCheck, Plus, Edit, Trash2, Search, Phone, Mail, Users, CalendarIcon, MapPin } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
@@ -48,8 +48,6 @@ const Members = () => {
     emergencyContactName: "",
     emergencyContactPhone: ""
   })
-  const [imageFile, setImageFile] = useState<File | null>(null)
-  const [imagePreview, setImagePreview] = useState<string | null>(null)
 
   const { toast } = useToast()
 
@@ -132,35 +130,6 @@ const Members = () => {
       return
     }
 
-    let imageUrl = formData.imageUrl
-    
-    // Upload image if provided
-    if (imageFile) {
-      try {
-        const fileExt = imageFile.name.split('.').pop()
-        const fileName = `${Math.random()}.${fileExt}`
-        const filePath = `member-images/${fileName}`
-
-        const { error: uploadError } = await supabase.storage
-          .from('member-images')
-          .upload(filePath, imageFile)
-
-        if (uploadError) throw uploadError
-
-        const { data: { publicUrl } } = supabase.storage
-          .from('member-images')
-          .getPublicUrl(filePath)
-
-        imageUrl = publicUrl
-      } catch (error) {
-        console.error('Error uploading image:', error)
-        toast({
-          title: "Image Upload Failed",
-          description: "Failed to upload image, but member will be saved without image.",
-          variant: "destructive"
-        })
-      }
-    }
 
     try {
       if (editingMember) {
@@ -176,7 +145,7 @@ const Members = () => {
             date_of_birth: (formData.day && formData.month && formData.year) 
               ? `${formData.year}-${formData.month.padStart(2, '0')}-${formData.day.padStart(2, '0')}` 
               : null,
-            image_url: imageUrl || null,
+            image_url: formData.imageUrl || null,
             emergency_contact_name: formData.emergencyContactName || null,
             emergency_contact_phone: formData.emergencyContactPhone || null,
           })
@@ -201,7 +170,7 @@ const Members = () => {
             date_of_birth: (formData.day && formData.month && formData.year) 
               ? `${formData.year}-${formData.month.padStart(2, '0')}-${formData.day.padStart(2, '0')}` 
               : null,
-            image_url: imageUrl || null,
+            image_url: formData.imageUrl || null,
             emergency_contact_name: formData.emergencyContactName || null,
             emergency_contact_phone: formData.emergencyContactPhone || null,
           })
@@ -219,8 +188,6 @@ const Members = () => {
       
       // Reset form
       setFormData({ name: "", phone: "", email: "", group: "", location: "", day: "", month: "", year: "", imageUrl: "", emergencyContactName: "", emergencyContactPhone: "" })
-      setImageFile(null)
-      setImagePreview(null)
       setEditingMember(null)
       setIsDialogOpen(false)
     } catch (error) {
@@ -258,8 +225,6 @@ const Members = () => {
       emergencyContactName: (member as any).emergency_contact_name || '',
       emergencyContactPhone: (member as any).emergency_contact_phone || ''
     })
-    setImagePreview(member.image_url)
-    setImageFile(null)
     setIsDialogOpen(true)
   }
 
@@ -322,27 +287,7 @@ const Members = () => {
   const handleNewMember = () => {
     setEditingMember(null)
     setFormData({ name: "", phone: "", email: "", group: "", location: "", day: "", month: "", year: "", imageUrl: "", emergencyContactName: "", emergencyContactPhone: "" })
-    setImageFile(null)
-    setImagePreview(null)
     setIsDialogOpen(true)
-  }
-
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      setImageFile(file)
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        setImagePreview(e.target?.result as string)
-      }
-      reader.readAsDataURL(file)
-    }
-  }
-
-  const removeImage = () => {
-    setImageFile(null)
-    setImagePreview(null)
-    setFormData({...formData, imageUrl: ""})
   }
 
   return (
@@ -366,44 +311,28 @@ const Members = () => {
               </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Image Upload Section */}
+              {/* Image URL Section */}
               <div className="space-y-2">
-                <Label>Profile Image (Optional)</Label>
-                <div className="flex items-center space-x-4">
-                  {imagePreview ? (
-                    <div className="relative">
-                      <img 
-                        src={imagePreview} 
-                        alt="Preview" 
-                        className="w-20 h-20 rounded-full object-cover border-2 border-border"
-                      />
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="sm"
-                        className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0"
-                        onClick={removeImage}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="w-20 h-20 rounded-full bg-muted border-2 border-dashed border-border flex items-center justify-center">
-                      <Upload className="h-6 w-6 text-muted-foreground" />
-                    </div>
-                  )}
-                  <div className="flex-1">
-                    <Input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleImageChange}
-                      className="cursor-pointer"
+                <Label htmlFor="imageUrl">Profile Image URL (Optional)</Label>
+                <Input
+                  id="imageUrl"
+                  type="url"
+                  value={formData.imageUrl}
+                  onChange={(e) => setFormData({...formData, imageUrl: e.target.value})}
+                  placeholder="https://example.com/image.jpg"
+                />
+                {formData.imageUrl && (
+                  <div className="mt-2">
+                    <img 
+                      src={formData.imageUrl} 
+                      alt="Preview" 
+                      className="w-20 h-20 rounded-full object-cover border-2 border-border"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none'
+                      }}
                     />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Upload a profile image (JPG, PNG, GIF)
-                    </p>
                   </div>
-                </div>
+                )}
               </div>
               
               <div className="space-y-2">
