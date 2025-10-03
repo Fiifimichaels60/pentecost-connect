@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Calendar, Plus, Edit, Trash2, Search, Download, Users, CheckCircle, Clock, UserCheck, AlertCircle, FileText, CalendarIcon, Filter } from "lucide-react"
+import { Calendar, Plus, CreditCard as Edit, Trash2, Search, Download, Users, CircleCheck as CheckCircle, Clock, UserCheck, CircleAlert as AlertCircle, FileText, Calendar as CalendarIcon, Filter } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 

@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { UserCheck, Plus, Edit, Trash2, Search, Phone, Mail, Users, CalendarIcon, MapPin, Download } from "lucide-react"
+import { UserCheck, Plus, CreditCard as Edit, Trash2, Search, Phone, Mail, Users, Calendar as CalendarIcon, MapPin, Download } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
