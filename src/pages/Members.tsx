@@ -17,8 +17,7 @@ interface Member {
   name: string
   email: string
   phone: string
-  group_id: string | null
-  group_name: string | null
+  groups: { id: string, name: string }[]
   location: string | null
   date_of_birth: string | null
   status: string
@@ -39,7 +38,7 @@ const Members = () => {
     name: "",
     phone: "",
     email: "",
-    group: "",
+    groups: [] as string[],
     location: "",
     day: "",
     month: "",
@@ -61,29 +60,44 @@ const Members = () => {
     try {
       const { data, error } = await supabase
         .from('anaji_members')
-        .select(`
-          *,
-          anaji_groups(name)
-        `)
+        .select('*')
         .order('created_at', { ascending: false })
 
       if (error) throw error
 
-      const formattedMembers = (data || []).map(member => ({
-        id: member.id,
-        name: member.name,
-        email: member.email || 'N/A',
-        phone: member.phone,
-        group_id: member.group_id,
-        group_name: (member as any).anaji_groups?.name || null,
-        location: member.location,
-        date_of_birth: member.date_of_birth,
-        status: member.status,
-        image_url: member.image_url,
-        created_at: member.created_at,
-      }))
+      // For each member, fetch their groups from the junction table
+      const membersWithGroups = await Promise.all(
+        (data || []).map(async (member) => {
+          const { data: memberGroups } = await supabase
+            .from('anaji_member_groups')
+            .select(`
+              anaji_groups (
+                id,
+                name
+              )
+            `)
+            .eq('member_id', member.id);
 
-      setMembers(formattedMembers)
+          const groups = (memberGroups || [])
+            .map(mg => mg.anaji_groups)
+            .filter(g => g !== null);
+
+          return {
+            id: member.id,
+            name: member.name,
+            email: member.email || 'N/A',
+            phone: member.phone,
+            groups: groups,
+            location: member.location,
+            date_of_birth: member.date_of_birth,
+            status: member.status,
+            image_url: member.image_url,
+            created_at: member.created_at,
+          };
+        })
+      );
+
+      setMembers(membersWithGroups)
     } catch (error) {
       console.error('Error loading members:', error)
       toast({
@@ -114,7 +128,7 @@ const Members = () => {
     const matchesSearch = member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (member.phone && member.phone.includes(searchTerm)) ||
                          member.email.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesGroup = selectedGroup === "all" || member.group_id === selectedGroup
+    const matchesGroup = selectedGroup === "all" || member.groups.some(g => g.id === selectedGroup)
     return matchesSearch && matchesGroup
   })
 
@@ -140,7 +154,6 @@ const Members = () => {
             name: formData.name,
             phone: formData.phone,
             email: formData.email || null,
-            group_id: formData.group || null,
             location: formData.location || null,
             date_of_birth: (formData.day && formData.month && formData.year) 
               ? `${formData.year}-${formData.month.padStart(2, '0')}-${formData.day.padStart(2, '0')}` 
@@ -153,19 +166,34 @@ const Members = () => {
 
         if (error) throw error
 
+        // Update member groups
+        // First delete existing relationships
+        await supabase
+          .from('anaji_member_groups')
+          .delete()
+          .eq('member_id', editingMember.id)
+
+        // Then insert new relationships
+        if (formData.groups.length > 0) {
+          const memberGroups = formData.groups.map(groupId => ({
+            member_id: editingMember.id,
+            group_id: groupId
+          }))
+          await supabase.from('anaji_member_groups').insert(memberGroups)
+        }
+
         toast({
           title: "Member Updated",
           description: `${formData.name} has been updated successfully.`,
         })
       } else {
         // Create new member
-        const { error } = await supabase
+        const { data: newMember, error } = await supabase
           .from('anaji_members')
           .insert({
             name: formData.name,
             phone: formData.phone,
             email: formData.email || null,
-            group_id: formData.group || null,
             location: formData.location || null,
             date_of_birth: (formData.day && formData.month && formData.year) 
               ? `${formData.year}-${formData.month.padStart(2, '0')}-${formData.day.padStart(2, '0')}` 
@@ -174,8 +202,19 @@ const Members = () => {
             emergency_contact_name: formData.emergencyContactName || null,
             emergency_contact_phone: formData.emergencyContactPhone || null,
           })
+          .select()
+          .single()
 
         if (error) throw error
+
+        // Add member to selected groups
+        if (formData.groups.length > 0 && newMember) {
+          const memberGroups = formData.groups.map(groupId => ({
+            member_id: newMember.id,
+            group_id: groupId
+          }))
+          await supabase.from('anaji_member_groups').insert(memberGroups)
+        }
 
         toast({
           title: "Member Added",
@@ -187,7 +226,7 @@ const Members = () => {
       await loadMembers()
       
       // Reset form
-      setFormData({ name: "", phone: "", email: "", group: "", location: "", day: "", month: "", year: "", imageUrl: "", emergencyContactName: "", emergencyContactPhone: "" })
+      setFormData({ name: "", phone: "", email: "", groups: [], location: "", day: "", month: "", year: "", imageUrl: "", emergencyContactName: "", emergencyContactPhone: "" })
       setEditingMember(null)
       setIsDialogOpen(false)
     } catch (error) {
@@ -216,7 +255,7 @@ const Members = () => {
       name: member.name,
       phone: member.phone,
       email: member.email,
-      group: member.group_id || '',
+      groups: member.groups.map(g => g.id),
       location: member.location || '',
       day,
       month,
@@ -286,7 +325,7 @@ const Members = () => {
 
   const handleNewMember = () => {
     setEditingMember(null)
-    setFormData({ name: "", phone: "", email: "", group: "", location: "", day: "", month: "", year: "", imageUrl: "", emergencyContactName: "", emergencyContactPhone: "" })
+    setFormData({ name: "", phone: "", email: "", groups: [], location: "", day: "", month: "", year: "", imageUrl: "", emergencyContactName: "", emergencyContactPhone: "" })
     setIsDialogOpen(true)
   }
 
@@ -366,22 +405,29 @@ const Members = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="group">Group</Label>
-                <Select 
-                  value={formData.group} 
-                  onValueChange={(value) => setFormData({...formData, group: value})}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a group" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {groups.map((group) => (
-                      <SelectItem key={group.id} value={group.id}>
-                        {group.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label>Groups (Select Multiple)</Label>
+                <div className="border rounded-md p-3 max-h-48 overflow-y-auto space-y-2">
+                  {groups.map((group) => (
+                    <label key={group.id} className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={formData.groups.includes(group.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setFormData({...formData, groups: [...formData.groups, group.id]})
+                          } else {
+                            setFormData({...formData, groups: formData.groups.filter(id => id !== group.id)})
+                          }
+                        }}
+                        className="w-4 h-4"
+                      />
+                      <span>{group.name}</span>
+                    </label>
+                  ))}
+                  {groups.length === 0 && (
+                    <p className="text-sm text-muted-foreground">No groups available. Create groups first.</p>
+                  )}
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="location">Location</Label>
@@ -604,11 +650,15 @@ const Members = () => {
                     </div>
                   </TableCell>
                   <TableCell>
-                    {member.group_name ? (
-                      <Badge variant="outline" className="flex items-center space-x-1">
-                        <Users className="h-3 w-3" />
-                        <span>{member.group_name}</span>
-                      </Badge>
+                    {member.groups.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {member.groups.map(group => (
+                          <Badge key={group.id} variant="outline" className="flex items-center space-x-1">
+                            <Users className="h-3 w-3" />
+                            <span>{group.name}</span>
+                          </Badge>
+                        ))}
+                      </div>
                     ) : (
                       <span className="text-muted-foreground text-sm">No Group</span>
                     )}

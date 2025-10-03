@@ -86,14 +86,27 @@ const Groups = () => {
     try {
       setLoadingMembers(true)
       const { data, error } = await supabase
-        .from('anaji_members')
-        .select('*')
-        .eq('group_id', groupId)
-        .order('name')
+        .from('anaji_member_groups')
+        .select(`
+          member_id,
+          anaji_members (
+            id,
+            name,
+            phone,
+            email,
+            status
+          )
+        `)
+        .eq('group_id', groupId);
 
       if (error) throw error
 
-      setGroupMembers(data || [])
+      // Flatten the data structure
+      const formattedMembers = (data || [])
+        .map(item => item.anaji_members)
+        .filter(member => member !== null);
+
+      setGroupMembers(formattedMembers)
     } catch (error) {
       console.error('Error loading group members:', error)
       toast({
@@ -111,7 +124,6 @@ const Groups = () => {
       const { data, error } = await supabase
         .from('anaji_members')
         .select('*')
-        .is('group_id', null)
         .eq('status', 'active')
         .order('name')
 
@@ -265,16 +277,23 @@ const Groups = () => {
     try {
       setSendingSMS(true)
       
-      // Get group members
-      const { data: groupMembers, error: memberError } = await supabase
-        .from('anaji_members')
-        .select('phone')
+      // Get group members using the junction table
+      const { data: memberGroupData, error: memberError } = await supabase
+        .from('anaji_member_groups')
+        .select(`
+          anaji_members!inner (
+            phone,
+            status
+          )
+        `)
         .eq('group_id', selectedGroup.id)
-        .eq('status', 'active')
       
       if (memberError) throw memberError
       
-      const recipients = groupMembers.map(member => member.phone).filter(phone => phone)
+      // Extract phone numbers from active members
+      const recipients = memberGroupData
+        .map(item => item.anaji_members?.phone)
+        .filter(phone => phone && phone.trim() !== '');
       
       if (recipients.length === 0) {
         throw new Error('No active members with phone numbers found in this group')
@@ -324,19 +343,13 @@ const Groups = () => {
 
     try {
       const { error } = await supabase
-        .from('anaji_members')
-        .update({ group_id: selectedGroup.id })
-        .eq('id', memberId)
+        .from('anaji_member_groups')
+        .insert({
+          member_id: memberId,
+          group_id: selectedGroup.id
+        })
 
       if (error) throw error
-
-      // Update member count in group
-      const { error: updateError } = await supabase
-        .from('anaji_groups')
-        .update({ member_count: selectedGroup.memberCount + 1 })
-        .eq('id', selectedGroup.id)
-
-      if (updateError) throw updateError
 
       await loadGroupMembers(selectedGroup.id)
       await loadAvailableMembers()
@@ -350,7 +363,9 @@ const Groups = () => {
       console.error('Error adding member to group:', error)
       toast({
         title: "Error",
-        description: "Failed to add member to group",
+        description: error.message === 'duplicate key value violates unique constraint "anaji_member_groups_member_id_group_id_key"' 
+          ? "Member is already in this group" 
+          : "Failed to add member to group",
         variant: "destructive"
       })
     }
@@ -361,19 +376,12 @@ const Groups = () => {
 
     try {
       const { error } = await supabase
-        .from('anaji_members')
-        .update({ group_id: null })
-        .eq('id', memberId)
+        .from('anaji_member_groups')
+        .delete()
+        .eq('member_id', memberId)
+        .eq('group_id', selectedGroup.id)
 
       if (error) throw error
-
-      // Update member count in group
-      const { error: updateError } = await supabase
-        .from('anaji_groups')
-        .update({ member_count: Math.max(0, selectedGroup.memberCount - 1) })
-        .eq('id', selectedGroup.id)
-
-      if (updateError) throw updateError
 
       await loadGroupMembers(selectedGroup.id)
       await loadAvailableMembers()

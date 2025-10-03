@@ -44,6 +44,27 @@ Deno.serve(async (req) => {
       throw new Error('Maximum 100 recipients allowed per campaign');
     }
 
+    // Fetch Hubtel API credentials from nana_settings table
+    const { data: settings, error: settingsError } = await supabase
+      .from('nana_settings')
+      .select('key, value')
+      .in('key', ['hubtel_client_id', 'hubtel_client_secret', 'hubtel_sender_id']);
+
+    if (settingsError) {
+      console.error('Error fetching Hubtel settings:', settingsError);
+      throw new Error('Failed to fetch Hubtel API settings');
+    }
+
+    const hubtelClientId = settings?.find(s => s.key === 'hubtel_client_id')?.value;
+    const hubtelClientSecret = settings?.find(s => s.key === 'hubtel_client_secret')?.value;
+    const hubtelSenderId = settings?.find(s => s.key === 'hubtel_sender_id')?.value || 'Church';
+
+    if (!hubtelClientId || !hubtelClientSecret) {
+      throw new Error('Hubtel API credentials not configured. Please add hubtel_client_id and hubtel_client_secret in Settings.');
+    }
+
+    console.log('Hubtel credentials loaded successfully');
+
     // Create campaign record
     const { data: campaign, error: campaignError } = await supabase
       .from('anaji_sms_campaigns')
@@ -67,49 +88,77 @@ Deno.serve(async (req) => {
 
     console.log(`Campaign created with ID: ${campaign.id}`);
 
-    // Simulate SMS sending with realistic success rates
+    // Send SMS using Hubtel API
     let deliveredCount = 0;
     let failedCount = 0;
     const deliveryReports = [];
 
+    // Create Basic Auth header
+    const authString = `${hubtelClientId}:${hubtelClientSecret}`;
+    const base64Auth = btoa(authString);
+
     for (const phone of recipients) {
       try {
-        // Format phone number
-        let formattedPhone = phone.replace(/\s+/g, '');
+        // Format phone number for Hubtel (expects format: 233XXXXXXXXX without +)
+        let formattedPhone = phone.replace(/\s+/g, '').replace(/\+/g, '');
         if (formattedPhone.startsWith('0')) {
-          formattedPhone = '+233' + formattedPhone.substring(1);
-        } else if (!formattedPhone.startsWith('+233') && !formattedPhone.startsWith('+')) {
-          formattedPhone = '+233' + formattedPhone;
+          formattedPhone = '233' + formattedPhone.substring(1);
+        } else if (!formattedPhone.startsWith('233')) {
+          formattedPhone = '233' + formattedPhone;
         }
 
-        // Simulate SMS sending with 90% success rate
-        const isSuccess = Math.random() > 0.1;
-        const messageId = `MSG_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        
-        if (isSuccess) {
-          deliveredCount++;
-        } else {
-          failedCount++;
-        }
+        console.log(`Sending SMS to ${formattedPhone}`);
 
-        deliveryReports.push({
-          campaign_id: campaign.id,
-          recipient_phone: formattedPhone,
-          status: isSuccess ? 'delivered' : 'failed',
-          delivery_time: isSuccess ? new Date().toISOString() : null,
-          error_message: isSuccess ? null : 'Simulated delivery failure',
-          provider_message_id: isSuccess ? messageId : null
+        // Call Hubtel SMS API
+        const hubtelResponse = await fetch('https://devp-sms.hubtel.com/v1/messages/send', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Basic ${base64Auth}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            from: hubtelSenderId,
+            to: formattedPhone,
+            content: message
+          })
         });
 
-        console.log(`SMS to ${formattedPhone}: ${isSuccess ? 'delivered' : 'failed'}`);
+        const hubtelResult = await hubtelResponse.json();
+        console.log('Hubtel API response:', hubtelResult);
+
+        if (hubtelResponse.ok && hubtelResult.status === 0) {
+          deliveredCount++;
+          deliveryReports.push({
+            campaign_id: campaign.id,
+            recipient_phone: formattedPhone,
+            status: 'delivered',
+            delivery_time: new Date().toISOString(),
+            provider_message_id: hubtelResult.messageId || hubtelResult.data?.messageId
+          });
+          console.log(`SMS to ${formattedPhone}: delivered`);
+        } else {
+          failedCount++;
+          const errorMessage = hubtelResult.message || hubtelResult.data?.message || 'Unknown error';
+          deliveryReports.push({
+            campaign_id: campaign.id,
+            recipient_phone: formattedPhone,
+            status: 'failed',
+            error_message: errorMessage
+          });
+          console.log(`SMS to ${formattedPhone}: failed - ${errorMessage}`);
+        }
+
+        // Small delay to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 100));
+
       } catch (error) {
-        console.error(`Failed to process SMS for ${phone}:`, error);
+        console.error(`Failed to send SMS to ${phone}:`, error);
         failedCount++;
         deliveryReports.push({
           campaign_id: campaign.id,
           recipient_phone: phone,
           status: 'failed',
-          error_message: error instanceof Error ? error.message : 'Processing error'
+          error_message: error instanceof Error ? error.message : 'Network or API error'
         });
       }
     }
