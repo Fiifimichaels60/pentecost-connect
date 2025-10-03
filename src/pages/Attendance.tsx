@@ -139,7 +139,7 @@ const Attendance = () => {
     type: "Service",
     date: new Date().toISOString().split('T')[0],
     notes: "",
-    groupId: ""
+    groupId: "all"
   })
   const [groups, setGroups] = useState<{id: string, name: string, member_count?: number}[]>([])
   const [dateFilter, setDateFilter] = useState("")
@@ -173,16 +173,20 @@ const Attendance = () => {
     }
 
     try {
+      const groupId = formData.groupId === "all" ? null : formData.groupId
+      const selectedGroup = groupId ? groups.find(g => g.id === groupId) : null
+      const memberCount = selectedGroup?.member_count || 0
+
       const { error } = await supabase
         .from('attendance_sessions')
         .insert({
           title: formData.name,
           date: formData.date,
           type: formData.type,
-          group_id: formData.groupId || null,
-          total_members: formData.groupId ? groups.find(g => g.id === formData.groupId)?.member_count || 0 : 0,
+          group_id: groupId,
+          total_members: memberCount,
           present_count: 0,
-          absent_count: formData.groupId ? groups.find(g => g.id === formData.groupId)?.member_count || 0 : 0,
+          absent_count: memberCount,
           status: "active",
           created_by: "Current User",
           notes: formData.notes
@@ -191,7 +195,7 @@ const Attendance = () => {
       if (error) throw error
 
       await loadSessions()
-      setFormData({ name: "", description: "", type: "Service", date: new Date().toISOString().split('T')[0], notes: "", groupId: "" })
+      setFormData({ name: "", description: "", type: "Service", date: new Date().toISOString().split('T')[0], notes: "", groupId: "all" })
       setIsDialogOpen(false)
       
       toast({
@@ -717,7 +721,7 @@ const Attendance = () => {
                     <SelectValue placeholder="Select a group or leave empty for all members" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Members</SelectItem>
+                    <SelectItem value="all">All Members</SelectItem>
                     {groups.map((group) => (
                       <SelectItem key={group.id} value={group.id}>
                         {group.name}
