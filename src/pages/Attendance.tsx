@@ -144,7 +144,6 @@ const Attendance = () => {
   const { toast } = useToast()
 
   const sessionTypes = ["Service", "Meeting", "Prayer", "Event", "Training"]
-  const groupsOld = ["Men's Fellowship", "Women's Fellowship", "Youth Ministry", "Church Choir", "Ushering Team"]
 
   const filteredSessions = sessions.filter(session =>
     session.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -254,23 +253,44 @@ const Attendance = () => {
             lastAttended: "2024-01-01"
           }))
       } else {
-        // Load all active members
-        const { data, error } = await supabase
+        // Load all active members with their groups
+        const { data: memberData, error: memberError } = await supabase
           .from('anaji_members')
           .select('*')
           .eq('status', 'active')
           .order('name')
 
-        if (error) throw error
+        if (memberError) throw memberError
 
-        formattedMembers = (data || []).map(member => ({
-          id: member.id,
-          name: member.name,
-          group: "All Members",
-          present: false,
-          phone: member.phone,
-          lastAttended: "2024-01-01"
-        }))
+        // For each member, get their groups
+        const membersWithGroups = await Promise.all(
+          (memberData || []).map(async (member) => {
+            const { data: memberGroups } = await supabase
+              .from('anaji_member_groups')
+              .select(`
+                anaji_groups (
+                  name
+                )
+              `)
+              .eq('member_id', member.id)
+
+            const groupNames = (memberGroups || [])
+              .map(mg => mg.anaji_groups?.name)
+              .filter(name => name)
+              .join(', ')
+
+            return {
+              id: member.id,
+              name: member.name,
+              group: groupNames || "No Group",
+              present: false,
+              phone: member.phone,
+              lastAttended: "2024-01-01"
+            }
+          })
+        )
+
+        formattedMembers = membersWithGroups
       }
 
       setAttendanceMembers(formattedMembers)
@@ -584,9 +604,9 @@ const Attendance = () => {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Groups</SelectItem>
-              {groupsOld.map((group) => (
-                <SelectItem key={group} value={group}>
-                  {group}
+              {groups.map((group) => (
+                <SelectItem key={group.id} value={group.name}>
+                  {group.name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -616,17 +636,17 @@ const Attendance = () => {
           <Button variant="outline" size="sm" onClick={() => handleQuickSearch("")}>
             All Members
           </Button>
-          {groupsOld.map((group) => (
-            <Button 
-              key={group} 
-              variant="outline" 
+          {groups.map((group) => (
+            <Button
+              key={group.id}
+              variant="outline"
               size="sm"
               onClick={() => {
-                setFilterGroup(group)
+                setFilterGroup(group.name)
                 setSearchTerm("")
               }}
             >
-              {group}
+              {group.name}
             </Button>
           ))}
         </div>
