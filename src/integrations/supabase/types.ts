@@ -139,6 +139,42 @@ export type Database = {
           },
         ]
       }
+      anaji_member_groups: {
+        Row: {
+          created_at: string | null
+          group_id: string
+          id: string
+          member_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          group_id: string
+          id?: string
+          member_id: string
+        }
+        Update: {
+          created_at?: string | null
+          group_id?: string
+          id?: string
+          member_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anaji_member_groups_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "anaji_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anaji_member_groups_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "anaji_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       anaji_members: {
         Row: {
           created_at: string
