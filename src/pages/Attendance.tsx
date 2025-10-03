@@ -100,10 +100,7 @@ const Attendance = () => {
     try {
       const { data, error } = await supabase
         .from('anaji_members')
-        .select(`
-          *,
-          anaji_groups(name)
-        `)
+        .select('*')
         .eq('status', 'active')
         .order('name')
 
@@ -112,10 +109,10 @@ const Attendance = () => {
       const formattedMembers = (data || []).map(member => ({
         id: member.id,
         name: member.name,
-        group: member.anaji_groups?.name || "No Group",
+        group: "All Members",
         present: false,
         phone: member.phone,
-        lastAttended: "2024-01-01" // This would come from attendance records in real implementation
+        lastAttended: "2024-01-01"
       }))
 
       setMembers(formattedMembers)
@@ -223,34 +220,59 @@ const Attendance = () => {
   const loadSessionMembers = async (session: AttendanceSession) => {
     try {
       setLoadingMembers(true)
-      
-      let query = supabase
-        .from('anaji_members')
-        .select(`
-          *,
-          anaji_groups(name)
-        `)
-        .eq('status', 'active')
-        .order('name')
-      
-      // If session has a specific group, filter by that group
+
+      let formattedMembers: Member[] = []
+
       if (session.group_id) {
-        query = query.eq('group_id', session.group_id)
+        // Load members from specific group using junction table
+        const { data, error } = await supabase
+          .from('anaji_member_groups')
+          .select(`
+            member_id,
+            anaji_members (
+              id,
+              name,
+              phone,
+              status
+            ),
+            anaji_groups (
+              name
+            )
+          `)
+          .eq('group_id', session.group_id)
+
+        if (error) throw error
+
+        formattedMembers = (data || [])
+          .filter(item => item.anaji_members && item.anaji_members.status === 'active')
+          .map(item => ({
+            id: item.anaji_members.id,
+            name: item.anaji_members.name,
+            group: item.anaji_groups?.name || "No Group",
+            present: false,
+            phone: item.anaji_members.phone,
+            lastAttended: "2024-01-01"
+          }))
+      } else {
+        // Load all active members
+        const { data, error } = await supabase
+          .from('anaji_members')
+          .select('*')
+          .eq('status', 'active')
+          .order('name')
+
+        if (error) throw error
+
+        formattedMembers = (data || []).map(member => ({
+          id: member.id,
+          name: member.name,
+          group: "All Members",
+          present: false,
+          phone: member.phone,
+          lastAttended: "2024-01-01"
+        }))
       }
-      
-      const { data, error } = await query
-      
-      if (error) throw error
-      
-      const formattedMembers = (data || []).map(member => ({
-        id: member.id,
-        name: member.name,
-        group: member.anaji_groups?.name || "No Group",
-        present: false,
-        phone: member.phone,
-        lastAttended: "2024-01-01" // This would come from attendance records
-      }))
-      
+
       setAttendanceMembers(formattedMembers)
     } catch (error) {
       console.error('Error loading session members:', error)

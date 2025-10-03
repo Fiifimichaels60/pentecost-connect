@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { UserCheck, Plus, Edit, Trash2, Search, Phone, Mail, Users, CalendarIcon, MapPin } from "lucide-react"
+import { UserCheck, Plus, Edit, Trash2, Search, Phone, Mail, Users, CalendarIcon, MapPin, Download } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
@@ -22,6 +22,8 @@ interface Member {
   date_of_birth: string | null
   status: string
   image_url: string | null
+  emergency_contact_name?: string | null
+  emergency_contact_phone?: string | null
   created_at: string
 }
 
@@ -92,6 +94,8 @@ const Members = () => {
             date_of_birth: member.date_of_birth,
             status: member.status,
             image_url: member.image_url,
+            emergency_contact_name: member.emergency_contact_name,
+            emergency_contact_phone: member.emergency_contact_phone,
             created_at: member.created_at,
           };
         })
@@ -327,6 +331,53 @@ const Members = () => {
     setEditingMember(null)
     setFormData({ name: "", phone: "", email: "", groups: [], location: "", day: "", month: "", year: "", imageUrl: "", emergencyContactName: "", emergencyContactPhone: "" })
     setIsDialogOpen(true)
+  }
+
+  const exportToCSV = () => {
+    const membersToExport = filteredMembers.length > 0 ? filteredMembers : members
+
+    if (membersToExport.length === 0) {
+      toast({
+        title: "No Data to Export",
+        description: "No members available to export.",
+        variant: "destructive"
+      })
+      return
+    }
+
+    const csvContent = [
+      ['Name', 'Phone', 'Email', 'Groups', 'Location', 'Date of Birth', 'Emergency Contact Name', 'Emergency Contact Phone', 'Status', 'Date Joined'].join(','),
+      ...membersToExport.map(member => [
+        member.name,
+        member.phone,
+        member.email,
+        member.groups.map(g => g.name).join('; '),
+        member.location || '',
+        member.date_of_birth ? new Date(member.date_of_birth).toLocaleDateString() : '',
+        member.emergency_contact_name || '',
+        member.emergency_contact_phone || '',
+        member.status,
+        new Date(member.created_at).toLocaleDateString()
+      ].join(','))
+    ].join('\n')
+
+    const blob = new Blob([csvContent], { type: 'text/csv' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    const filename = searchTerm || selectedGroup !== "all"
+      ? `members-filtered-${new Date().toISOString().split('T')[0]}.csv`
+      : `members-all-${new Date().toISOString().split('T')[0]}.csv`
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    window.URL.revokeObjectURL(url)
+
+    toast({
+      title: "Export Complete",
+      description: `Exported ${membersToExport.length} member(s) to CSV.`
+    })
   }
 
   return (
@@ -594,6 +645,10 @@ const Members = () => {
             ))}
           </SelectContent>
         </Select>
+        <Button variant="outline" onClick={exportToCSV}>
+          <Download className="h-4 w-4 mr-2" />
+          Export CSV
+        </Button>
       </div>
 
       {/* Members Table */}

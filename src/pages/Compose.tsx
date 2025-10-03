@@ -66,20 +66,32 @@ export default function Compose() {
 
     try {
       const { data, error } = await supabase
-        .from('anaji_members')
-        .select('id, name, phone')
-        .in('group_id', groupIds)
-        .eq('status', 'active');
+        .from('anaji_member_groups')
+        .select(`
+          member_id,
+          anaji_members (
+            id,
+            name,
+            phone,
+            status
+          )
+        `)
+        .in('group_id', groupIds);
 
       if (error) throw error;
-      
-      const formattedMembers = (data || []).map(member => ({
-        id: member.id,
-        first_name: member.name.split(' ')[0] || '',
-        last_name: member.name.split(' ').slice(1).join(' ') || '',
-        phone_number: member.phone
-      }));
-      
+
+      const formattedMembers = (data || [])
+        .filter(item => item.anaji_members && item.anaji_members.status === 'active')
+        .map(item => {
+          const member = item.anaji_members;
+          return {
+            id: member.id,
+            first_name: member.name.split(' ')[0] || '',
+            last_name: member.name.split(' ').slice(1).join(' ') || '',
+            phone_number: member.phone
+          };
+        });
+
       setMembers(formattedMembers);
     } catch (error) {
       console.error('Error fetching members:', error);
