@@ -31,13 +31,44 @@ export default function Compose() {
   const [manualRecipients, setManualRecipients] = useState('');
   const [groups, setGroups] = useState<Group[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
+  const [allMembers, setAllMembers] = useState<Member[]>([]);
+  const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
   const [isSending, setIsSending] = useState(false);
   const [activeTab, setActiveTab] = useState('groups');
   const { toast } = useToast();
 
   useEffect(() => {
     fetchGroups();
+    fetchAllMembers();
   }, []);
+
+  const fetchAllMembers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('anaji_members')
+        .select('id, name, phone, status')
+        .eq('status', 'active')
+        .order('name');
+
+      if (error) throw error;
+
+      const formattedMembers = (data || []).map(member => ({
+        id: member.id,
+        first_name: member.name.split(' ')[0] || '',
+        last_name: member.name.split(' ').slice(1).join(' ') || '',
+        phone_number: member.phone
+      }));
+
+      setAllMembers(formattedMembers);
+    } catch (error) {
+      console.error('Error fetching all members:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load members',
+        variant: 'destructive',
+      });
+    }
+  };
 
   const fetchGroups = async () => {
     try {
@@ -123,11 +154,12 @@ export default function Compose() {
     if (activeTab === 'groups') {
       return members.length;
     } else {
-      const phones = manualRecipients
+      // Count selected members plus manually entered phone numbers
+      const manualPhones = manualRecipients
         .split(/[,\n]/)
         .map(phone => phone.trim())
         .filter(phone => phone.length > 0);
-      return phones.length;
+      return selectedMembers.length + manualPhones.length;
     }
   };
 
@@ -173,11 +205,18 @@ export default function Compose() {
           ? groups.find(g => g.id === selectedGroups[0])?.name || 'Unknown Group'
           : `${selectedGroups.length} Groups`;
       } else {
-        recipientType = recipients.length === 1 ? 'single' : 'manual';
-        recipients = manualRecipients
+        // Combine selected members and manual phone numbers
+        const selectedMemberPhones = allMembers
+          .filter(m => selectedMembers.includes(m.id))
+          .map(m => m.phone_number);
+        
+        const manualPhones = manualRecipients
           .split(/[,\n]/)
           .map(phone => phone.trim())
           .filter(phone => phone.length > 0);
+        
+        recipients = [...selectedMemberPhones, ...manualPhones];
+        recipientType = recipients.length === 1 ? 'single' : 'manual';
         recipientName = recipientType === 'single' ? recipients[0] : 'Manual Recipients';
       }
 
@@ -214,6 +253,7 @@ export default function Compose() {
       // Reset form
       setMessage('');
       setSelectedGroups([]);
+      setSelectedMembers([]);
       setManualRecipients('');
       setMembers([]);
 
@@ -336,19 +376,78 @@ export default function Compose() {
               </TabsContent>
 
               <TabsContent value="manual" className="space-y-4">
-                <div>
-                  <Label htmlFor="manual-recipients">Phone Numbers</Label>
-                  <Textarea
-                    id="manual-recipients"
-                    placeholder="Enter phone numbers separated by commas or new lines&#10;e.g., +1234567890, +0987654321"
-                    value={manualRecipients}
-                    onChange={(e) => setManualRecipients(e.target.value)}
-                    rows={6}
-                    className="mt-1"
-                  />
-                  <p className="text-sm text-muted-foreground mt-2">
-                    {getRecipientCount()} recipients
-                  </p>
+                <div className="space-y-4">
+                  <div>
+                    <Label>Select Members</Label>
+                    <div className="mt-2 max-h-64 overflow-y-auto border rounded-lg p-4 space-y-3">
+                      {allMembers.length === 0 ? (
+                        <p className="text-muted-foreground text-center py-4">
+                          No members available
+                        </p>
+                      ) : (
+                        allMembers.map((member) => (
+                          <div
+                            key={member.id}
+                            className="flex items-center space-x-3 p-2 hover:bg-muted/50 rounded"
+                          >
+                            <Checkbox
+                              id={`member-${member.id}`}
+                              checked={selectedMembers.includes(member.id)}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setSelectedMembers([...selectedMembers, member.id]);
+                                } else {
+                                  setSelectedMembers(selectedMembers.filter(id => id !== member.id));
+                                }
+                              }}
+                            />
+                            <div className="flex-1">
+                              <Label htmlFor={`member-${member.id}`} className="cursor-pointer font-normal">
+                                {member.first_name} {member.last_name}
+                              </Label>
+                              <p className="text-xs text-muted-foreground">
+                                {member.phone_number}
+                              </p>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    {selectedMembers.length > 0 && (
+                      <p className="text-sm text-muted-foreground mt-2">
+                        {selectedMembers.length} member(s) selected
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-background px-2 text-muted-foreground">
+                        Or enter phone numbers manually
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="manual-recipients">Phone Numbers</Label>
+                    <Textarea
+                      id="manual-recipients"
+                      placeholder="Enter phone numbers separated by commas or new lines&#10;e.g., +233501234567, +233241234567"
+                      value={manualRecipients}
+                      onChange={(e) => setManualRecipients(e.target.value)}
+                      rows={4}
+                      className="mt-1"
+                    />
+                  </div>
+
+                  <div className="bg-muted/50 p-3 rounded-lg">
+                    <p className="text-sm font-medium">
+                      Total recipients: {getRecipientCount()}
+                    </p>
+                  </div>
                 </div>
               </TabsContent>
             </Tabs>
