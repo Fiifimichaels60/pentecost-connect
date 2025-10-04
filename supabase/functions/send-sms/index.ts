@@ -114,7 +114,7 @@ if (!hubtelClientId || !hubtelClientSecret) {
         console.log(`Sending SMS to ${formattedPhone}`);
 
         // Call Hubtel SMS API
-        const hubtelResponse = await fetch('https://devp-sms.hubtel.com/v1/messages/send', {
+        const hubtelResponse = await fetch('https://sms.hubtel.com/v1/messages/send', {
           method: 'POST',
           headers: {
             'Authorization': `Basic ${base64Auth}`,
