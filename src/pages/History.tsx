@@ -44,8 +44,36 @@ const History = () => {
 
   const loadHistory = async () => {
     try {
-      // For now, return empty history since tables are newly created
-      setHistory([])
+      const { data, error } = await supabase
+        .from('anaji_sms_campaigns')
+        .select('id, message, recipients, recipient_type, recipient_name, status, sent_at, created_at, delivered_count, failed_count, recipient_count, cost')
+        .order('created_at', { ascending: false })
+        .limit(200);
+
+      if (error) throw error;
+
+      const mapped: SMSHistory[] = (data || []).map((c: any) => {
+        const dt = c.sent_at || c.created_at;
+        const dateObj = dt ? new Date(dt) : new Date();
+        const type = (c.recipient_type === 'single' ? 'individual' : c.recipient_type) as SMSHistory['recipient_type'];
+
+        return {
+          id: c.id,
+          message: c.message,
+          recipients: (c.recipients as string[]) || [],
+          recipient_type: type,
+          recipient_name: c.recipient_name,
+          status: (c.status as SMSHistory['status']) || 'sent',
+          sent_date: dateObj.toISOString(),
+          sent_time: dateObj.toTimeString().slice(0, 5),
+          delivered_count: c.delivered_count ?? 0,
+          failed_count: c.failed_count ?? 0,
+          recipient_count: c.recipient_count ?? (((c.recipients as string[])?.length) || 0),
+          cost: Number(c.cost ?? 0),
+        };
+      });
+
+      setHistory(mapped);
     } catch (error) {
       console.error('Error loading history:', error)
       toast({

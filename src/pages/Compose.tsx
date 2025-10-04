@@ -96,32 +96,37 @@ export default function Compose() {
     }
 
     try {
-      const { data, error } = await supabase
+      // Step 1: Get member IDs in the selected groups
+      const { data: linkRows, error: linkError } = await supabase
         .from('anaji_member_groups')
-        .select(`
-          member_id,
-          anaji_members (
-            id,
-            name,
-            phone,
-            status
-          )
-        `)
+        .select('member_id')
         .in('group_id', groupIds);
 
-      if (error) throw error;
+      if (linkError) throw linkError;
 
-      const formattedMembers = (data || [])
-        .filter(item => item.anaji_members && item.anaji_members.status === 'active')
-        .map(item => {
-          const member = item.anaji_members;
-          return {
-            id: member.id,
-            first_name: member.name.split(' ')[0] || '',
-            last_name: member.name.split(' ').slice(1).join(' ') || '',
-            phone_number: member.phone
-          };
-        });
+      const memberIds = Array.from(new Set((linkRows || []).map((r: any) => r.member_id))).filter(Boolean);
+
+      if (memberIds.length === 0) {
+        setMembers([]);
+        return;
+      }
+
+      // Step 2: Fetch active members by those IDs
+      const { data: memberRows, error: membersError } = await supabase
+        .from('anaji_members')
+        .select('id, name, phone, status')
+        .in('id', memberIds)
+        .eq('status', 'active')
+        .order('name');
+
+      if (membersError) throw membersError;
+
+      const formattedMembers = (memberRows || []).map((member: any) => ({
+        id: member.id,
+        first_name: member.name.split(' ')[0] || '',
+        last_name: member.name.split(' ').slice(1).join(' ') || '',
+        phone_number: member.phone
+      }));
 
       setMembers(formattedMembers);
     } catch (error) {

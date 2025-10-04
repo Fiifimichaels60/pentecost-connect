@@ -1,7 +1,7 @@
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
@@ -55,13 +55,17 @@ Deno.serve(async (req) => {
       throw new Error('Failed to fetch Hubtel API settings');
     }
 
-    const hubtelClientId = settings?.find(s => s.key === 'hubtel_client_id')?.value;
-    const hubtelClientSecret = settings?.find(s => s.key === 'hubtel_client_secret')?.value;
-    const hubtelSenderId = settings?.find(s => s.key === 'hubtel_sender_id')?.value || 'Church';
+const envClientId = Deno.env.get('hubtelClientId') || Deno.env.get('HUBTEL_CLIENT_ID');
+const envClientSecret = Deno.env.get('hubtelClientSecret') || Deno.env.get('HUBTEL_CLIENT_SECRET');
+const envSenderId = Deno.env.get('hubtelSenderId') || Deno.env.get('HUBTEL_SENDER_ID');
 
-    if (!hubtelClientId || !hubtelClientSecret) {
-      throw new Error('Hubtel API credentials not configured. Please add hubtel_client_id and hubtel_client_secret in Settings.');
-    }
+const hubtelClientId = envClientId || settings?.find(s => s.key === 'hubtel_client_id')?.value;
+const hubtelClientSecret = envClientSecret || settings?.find(s => s.key === 'hubtel_client_secret')?.value;
+const hubtelSenderId = envSenderId || settings?.find(s => s.key === 'hubtel_sender_id')?.value || 'Church';
+
+if (!hubtelClientId || !hubtelClientSecret) {
+  throw new Error('Hubtel API credentials not configured. Add hubtelClientId and hubtelClientSecret as Supabase secrets or set hubtel_client_id and hubtel_client_secret in Settings.');
+}
 
     console.log('Hubtel credentials loaded successfully');
 
