@@ -104,7 +104,7 @@ const Birthday = () => {
 
   const getUpcomingBirthdays = () => {
     const today = new Date()
-    const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000)
+    const next14Days = new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000)
     
     return birthdays.filter(birthday => {
       const birthDate = new Date(birthday.birthDate)
@@ -115,7 +115,7 @@ const Birthday = () => {
         thisYearBirthday.setFullYear(today.getFullYear() + 1)
       }
       
-      return thisYearBirthday >= today && thisYearBirthday <= nextWeek
+      return thisYearBirthday >= today && thisYearBirthday <= next14Days
     })
   }
 
@@ -138,7 +138,19 @@ const Birthday = () => {
       matchesMonth = birthDate.getMonth() === months.indexOf(selectedMonth)
     }
     
-    return matchesSearch && matchesMonth
+    // Only show birthdays within 14 days
+    const today = new Date()
+    const next14Days = new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000)
+    const birthDate = new Date(birthday.birthDate)
+    const thisYearBirthday = new Date(today.getFullYear(), birthDate.getMonth(), birthDate.getDate())
+    
+    if (thisYearBirthday < today) {
+      thisYearBirthday.setFullYear(today.getFullYear() + 1)
+    }
+    
+    const within14Days = thisYearBirthday >= today && thisYearBirthday <= next14Days
+    
+    return matchesSearch && matchesMonth && within14Days
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -398,7 +410,7 @@ const Birthday = () => {
           </CardHeader>
           <CardContent>
             <p className="text-sm mb-3">
-              {upcomingBirthdays.length} member{upcomingBirthdays.length > 1 ? 's' : ''} {upcomingBirthdays.length > 1 ? 'have' : 'has'} birthdays in the next 7 days:
+              {upcomingBirthdays.length} member{upcomingBirthdays.length > 1 ? 's' : ''} {upcomingBirthdays.length > 1 ? 'have' : 'has'} birthdays in the next 14 days:
             </p>
             <div className="space-y-2">
               {upcomingBirthdays.map((birthday) => {
