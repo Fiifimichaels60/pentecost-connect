@@ -152,7 +152,9 @@ const Attendance = () => {
 
   const filteredMembers = attendanceMembers.filter(member => {
     const matchesSearch = member.name.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesGroup = filterGroup === "all" || member.group === filterGroup
+    const matchesGroup = filterGroup === "all" ||
+                         member.group.toLowerCase().includes(filterGroup.toLowerCase()) ||
+                         member.group === filterGroup
     return matchesSearch && matchesGroup
   })
 
