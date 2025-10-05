@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Switch } from "@/components/ui/switch"
-import { Cake, Plus, Edit, Trash2, Search, Gift, Send, Calendar, MapPin } from "lucide-react"
+import { Cake, Plus, CreditCard as Edit, Trash2, Search, Gift, Send, Calendar, MapPin } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 
