@@ -120,17 +120,74 @@ const History = () => {
       return
     }
 
-    toast({
-      title: "Feature Coming Soon",
-      description: "SMS history deletion will be available once the SMS system is fully implemented.",
-    })
+    try {
+      // First delete related delivery reports
+      const { error: reportsError } = await supabase
+        .from('anaji_sms_delivery_reports')
+        .delete()
+        .in('campaign_id', selectedItems)
+
+      if (reportsError) throw reportsError
+
+      // Then delete the campaigns
+      const { error: campaignsError } = await supabase
+        .from('anaji_sms_campaigns')
+        .delete()
+        .in('id', selectedItems)
+
+      if (campaignsError) throw campaignsError
+
+      toast({
+        title: "Success",
+        description: `Successfully deleted ${selectedItems.length} campaign${selectedItems.length > 1 ? 's' : ''}.`,
+      })
+
+      // Clear selection and reload data
+      setSelectedItems([])
+      await loadHistory()
+    } catch (error) {
+      console.error('Error deleting campaigns:', error)
+      toast({
+        title: "Error",
+        description: "Failed to delete selected campaigns. Please try again.",
+        variant: "destructive"
+      })
+    }
   }
 
   const handleDeleteSingle = async (itemId: string) => {
-    toast({
-      title: "Feature Coming Soon",
-      description: "SMS history deletion will be available once the SMS system is fully implemented.",
-    })
+    try {
+      // First delete related delivery reports
+      const { error: reportsError } = await supabase
+        .from('anaji_sms_delivery_reports')
+        .delete()
+        .eq('campaign_id', itemId)
+
+      if (reportsError) throw reportsError
+
+      // Then delete the campaign
+      const { error: campaignError } = await supabase
+        .from('anaji_sms_campaigns')
+        .delete()
+        .eq('id', itemId)
+
+      if (campaignError) throw campaignError
+
+      toast({
+        title: "Success",
+        description: "Campaign deleted successfully.",
+      })
+
+      // Reload data
+      await loadHistory()
+    } catch (error) {
+      console.error('Error deleting campaign:', error)
+      toast({
+        title: "Error",
+        description: "Failed to delete campaign. Please try again.",
+        variant: "destructive"
+      })
+    }
   }
 
   const getStatusIcon = (status: string) => {
