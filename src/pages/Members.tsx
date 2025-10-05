@@ -20,6 +20,7 @@ interface Member {
   groups: { id: string, name: string }[]
   location: string | null
   date_of_birth: string | null
+  occupation: string | null
   status: string
   image_url: string | null
   emergency_contact_name?: string | null
@@ -42,6 +43,7 @@ const Members = () => {
     email: "",
     groups: [] as string[],
     location: "",
+    occupation: "",
     day: "",
     month: "",
     year: "",
@@ -92,6 +94,7 @@ const Members = () => {
             groups: groups,
             location: member.location,
             date_of_birth: member.date_of_birth,
+            occupation: member.occupation,
             status: member.status,
             image_url: member.image_url,
             emergency_contact_name: member.emergency_contact_name,
@@ -159,8 +162,9 @@ const Members = () => {
             phone: formData.phone,
             email: formData.email || null,
             location: formData.location || null,
-            date_of_birth: (formData.day && formData.month && formData.year) 
-              ? `${formData.year}-${formData.month.padStart(2, '0')}-${formData.day.padStart(2, '0')}` 
+            occupation: formData.occupation || null,
+            date_of_birth: (formData.day && formData.month && formData.year)
+              ? `${formData.year}-${formData.month.padStart(2, '0')}-${formData.day.padStart(2, '0')}`
               : null,
             image_url: formData.imageUrl || null,
             emergency_contact_name: formData.emergencyContactName || null,
@@ -199,8 +203,9 @@ const Members = () => {
             phone: formData.phone,
             email: formData.email || null,
             location: formData.location || null,
-            date_of_birth: (formData.day && formData.month && formData.year) 
-              ? `${formData.year}-${formData.month.padStart(2, '0')}-${formData.day.padStart(2, '0')}` 
+            occupation: formData.occupation || null,
+            date_of_birth: (formData.day && formData.month && formData.year)
+              ? `${formData.year}-${formData.month.padStart(2, '0')}-${formData.day.padStart(2, '0')}`
               : null,
             image_url: formData.imageUrl || null,
             emergency_contact_name: formData.emergencyContactName || null,
@@ -230,7 +235,7 @@ const Members = () => {
       await loadMembers()
       
       // Reset form
-      setFormData({ name: "", phone: "", email: "", groups: [], location: "", day: "", month: "", year: "", imageUrl: "", emergencyContactName: "", emergencyContactPhone: "" })
+      setFormData({ name: "", phone: "", email: "", groups: [], location: "", occupation: "", day: "", month: "", year: "", imageUrl: "", emergencyContactName: "", emergencyContactPhone: "" })
       setEditingMember(null)
       setIsDialogOpen(false)
     } catch (error) {
@@ -261,6 +266,7 @@ const Members = () => {
       email: member.email,
       groups: member.groups.map(g => g.id),
       location: member.location || '',
+      occupation: member.occupation || '',
       day,
       month,
       year,
@@ -329,7 +335,7 @@ const Members = () => {
 
   const handleNewMember = () => {
     setEditingMember(null)
-    setFormData({ name: "", phone: "", email: "", groups: [], location: "", day: "", month: "", year: "", imageUrl: "", emergencyContactName: "", emergencyContactPhone: "" })
+    setFormData({ name: "", phone: "", email: "", groups: [], location: "", occupation: "", day: "", month: "", year: "", imageUrl: "", emergencyContactName: "", emergencyContactPhone: "" })
     setIsDialogOpen(true)
   }
 
@@ -487,6 +493,15 @@ const Members = () => {
                   value={formData.location}
                   onChange={(e) => setFormData({...formData, location: e.target.value})}
                   placeholder="Enter location/address"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="occupation">Occupation</Label>
+                <Input
+                  id="occupation"
+                  value={formData.occupation}
+                  onChange={(e) => setFormData({...formData, occupation: e.target.value})}
+                  placeholder="Enter occupation/profession"
                 />
               </div>
               <div className="space-y-2">

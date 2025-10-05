@@ -3,8 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Switch } from "@/components/ui/switch"
@@ -33,6 +34,9 @@ const Birthday = () => {
   const [selectedMonth, setSelectedMonth] = useState("all")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingBirthday, setEditingBirthday] = useState<Birthday | null>(null)
+  const [isSendWishDialog, setIsSendWishDialog] = useState(false)
+  const [selectedBirthday, setSelectedBirthday] = useState<Birthday | null>(null)
+  const [wishMessage, setWishMessage] = useState("")
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
@@ -272,13 +276,65 @@ const Birthday = () => {
     setIsDialogOpen(true)
   }
 
-  const sendBirthdayWish = (birthdayId: string) => {
+  const generateBirthdayMessage = (name: string) => {
+    return `🎉 Happy Birthday ${name}! 🎂\n\nWishing you a day filled with joy, love, and blessings. May this new year of your life bring you abundant happiness, good health, and success in all your endeavors.\n\nCelebrate and enjoy your special day!\n\nWith love and prayers,\nYour Church Family`
+  }
+
+  const openSendWishDialog = (birthdayId: string) => {
     const birthday = birthdays.find(b => b.id === birthdayId)
     if (birthday) {
-      // In a real app, this would send an SMS via the SMS service
+      setSelectedBirthday(birthday)
+      setWishMessage(generateBirthdayMessage(birthday.name))
+      setIsSendWishDialog(true)
+    }
+  }
+
+  const sendBirthdayWish = async () => {
+    if (!selectedBirthday || !wishMessage.trim()) {
       toast({
-        title: "Birthday Wish Sent!",
-        description: `Birthday message sent to ${birthday.name} at ${birthday.phone}.`,
+        title: "Error",
+        description: "Message cannot be empty",
+        variant: "destructive"
+      })
+      return
+    }
+
+    try {
+      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms`
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          campaignName: `Birthday Wish - ${selectedBirthday.name}`,
+          message: wishMessage,
+          recipients: [selectedBirthday.phone],
+          recipientType: 'single',
+          recipientName: selectedBirthday.name
+        })
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        toast({
+          title: "Birthday Wish Sent!",
+          description: `Message sent to ${selectedBirthday.name} at ${selectedBirthday.phone}.`
+        })
+        setIsSendWishDialog(false)
+        setSelectedBirthday(null)
+        setWishMessage("")
+      } else {
+        throw new Error(result.error || 'Failed to send SMS')
+      }
+    } catch (error) {
+      console.error('Error sending birthday wish:', error)
+      toast({
+        title: "Error",
+        description: "Failed to send birthday wish. Please check your SMS settings.",
+        variant: "destructive"
       })
     }
   }
@@ -438,7 +494,7 @@ const Birthday = () => {
                     <Button
                       size="sm"
                       variant="secondary"
-                      onClick={() => sendBirthdayWish(birthday.id)}
+                      onClick={() => openSendWishDialog(birthday.id)}
                     >
                       <Send className="h-3 w-3 mr-1" />
                       Send Wish
@@ -491,7 +547,7 @@ const Birthday = () => {
                     </div>
                     <Button
                       size="sm"
-                      onClick={() => sendBirthdayWish(birthday.id)}
+                      onClick={() => openSendWishDialog(birthday.id)}
                     >
                       <Send className="h-3 w-3 mr-1" />
                       Send
@@ -631,6 +687,44 @@ const Birthday = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Send Birthday Wish Dialog */}
+      <Dialog open={isSendWishDialog} onOpenChange={setIsSendWishDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Send Birthday Wish to {selectedBirthday?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Recipient</Label>
+              <Input value={selectedBirthday?.phone || ''} disabled />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="wishMessage">Birthday Message</Label>
+              <Textarea
+                id="wishMessage"
+                value={wishMessage}
+                onChange={(e) => setWishMessage(e.target.value)}
+                placeholder="Enter your birthday wish..."
+                rows={8}
+                className="resize-none"
+              />
+              <p className="text-sm text-muted-foreground">
+                {wishMessage.length} characters
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsSendWishDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={sendBirthdayWish} disabled={!wishMessage.trim()}>
+              <Send className="h-4 w-4 mr-2" />
+              Send Wish
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
