@@ -128,28 +128,38 @@ if (!hubtelClientId || !hubtelClientSecret) {
         });
 
         const hubtelResult = await hubtelResponse.json();
-        console.log('Hubtel API response:', hubtelResult);
+        console.log('Hubtel API Full Response:', JSON.stringify(hubtelResult, null, 2));
+        console.log('Response Status Code:', hubtelResponse.status);
+        console.log('Response OK:', hubtelResponse.ok);
 
-        if (hubtelResponse.ok && hubtelResult.status === 0) {
+        // Hubtel returns 200 status code with ResponseCode in the body
+        // Success is ResponseCode: "0000" or status: 0
+        const isSuccess = hubtelResponse.ok && (
+          hubtelResult.ResponseCode === "0000" || 
+          hubtelResult.status === 0 || 
+          hubtelResult.Status === 0
+        );
+
+        if (isSuccess) {
           deliveredCount++;
           deliveryReports.push({
             campaign_id: campaign.id,
             recipient_phone: formattedPhone,
             status: 'delivered',
             delivery_time: new Date().toISOString(),
-            provider_message_id: hubtelResult.messageId || hubtelResult.data?.messageId
+            provider_message_id: hubtelResult.MessageId || hubtelResult.messageId || hubtelResult.data?.messageId
           });
-          console.log(`SMS to ${formattedPhone}: delivered`);
+          console.log(`✓ SMS to ${formattedPhone}: delivered`);
         } else {
           failedCount++;
-          const errorMessage = hubtelResult.message || hubtelResult.data?.message || 'Unknown error';
+          const errorMessage = hubtelResult.Message || hubtelResult.message || hubtelResult.data?.message || JSON.stringify(hubtelResult);
           deliveryReports.push({
             campaign_id: campaign.id,
             recipient_phone: formattedPhone,
             status: 'failed',
             error_message: errorMessage
           });
-          console.log(`SMS to ${formattedPhone}: failed - ${errorMessage}`);
+          console.log(`✗ SMS to ${formattedPhone}: failed - ${errorMessage}`);
         }
 
         // Small delay to avoid rate limiting
