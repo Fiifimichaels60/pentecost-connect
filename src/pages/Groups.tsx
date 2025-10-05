@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
-import { Users, Plus, Edit, Trash2, Search, UserPlus, Phone, Mail, Send, MessageSquare, Loader2 } from "lucide-react"
+import { Users, Plus, Edit, Trash2, Search, UserPlus, Phone, Mail, Send, MessageSquare, Loader2, LayoutGrid, List } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 
@@ -45,6 +45,7 @@ const Groups = () => {
   const [isSMSDialogOpen, setIsSMSDialogOpen] = useState(false)
   const [smsMessage, setSmsMessage] = useState("")
   const [sendingSMS, setSendingSMS] = useState(false)
+  const [viewType, setViewType] = useState<'grid' | 'list'>('grid')
 
   const { toast } = useToast()
 
@@ -464,88 +465,187 @@ const Groups = () => {
         </Dialog>
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Search groups..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-10"
-        />
+      {/* Search and View Toggle */}
+      <div className="flex items-center justify-between gap-4">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search groups..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant={viewType === 'grid' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewType('grid')}
+          >
+            <LayoutGrid className="h-4 w-4" />
+          </Button>
+          <Button
+            variant={viewType === 'list' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewType('list')}
+          >
+            <List className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
-      {/* Groups Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {loading ? (
-          <div className="col-span-full text-center py-8">
-            Loading groups...
-          </div>
-        ) : filteredGroups.map((group) => (
-          <Card key={group.id} className="shadow-elegant hover:shadow-lg transition-shadow">
-            <CardHeader className="pb-3">
-              <div className="flex items-start justify-between">
-                <CardTitle className="text-lg">{group.name}</CardTitle>
-                <Badge variant="secondary">
-                  {group.memberCount} members
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-muted-foreground text-sm">
-                {group.description || "No description provided"}
-              </p>
-              
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Created:</span>
-                  <span className="font-medium">
-                    {new Date(group.createdAt).toLocaleDateString()}
-                  </span>
+      {/* Groups Display */}
+      {viewType === 'grid' ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {loading ? (
+            <div className="col-span-full text-center py-8">
+              Loading groups...
+            </div>
+          ) : filteredGroups.map((group) => (
+            <Card key={group.id} className="shadow-elegant hover:shadow-lg transition-shadow">
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between">
+                  <CardTitle className="text-lg">{group.name}</CardTitle>
+                  <Badge variant="secondary">
+                    {group.memberCount} members
+                  </Badge>
                 </div>
-              </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-muted-foreground text-sm">
+                  {group.description || "No description provided"}
+                </p>
+                
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Created:</span>
+                    <span className="font-medium">
+                      {new Date(group.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                </div>
 
-              <div className="flex space-x-2 pt-2">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="flex-1"
-                  onClick={() => handleEdit(group)}
-                >
-                  <Edit className="h-4 w-4 mr-1" />
-                  Edit
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  className="flex-1"
-                  onClick={() => handleManageMembers(group)}
-                >
-                  <UserPlus className="h-4 w-4 mr-1" />
-                  Members
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  className="flex-1"
-                  onClick={() => handleSendGroupSMS(group)}
-                >
-                  <Send className="h-4 w-4 mr-1" />
-                  SMS
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => handleDelete(group.id)}
-                  className="text-destructive hover:text-destructive"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+                <div className="flex space-x-2 pt-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="flex-1"
+                    onClick={() => handleEdit(group)}
+                  >
+                    <Edit className="h-4 w-4 mr-1" />
+                    Edit
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => handleManageMembers(group)}
+                  >
+                    <UserPlus className="h-4 w-4 mr-1" />
+                    Members
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => handleSendGroupSMS(group)}
+                  >
+                    <Send className="h-4 w-4 mr-1" />
+                    SMS
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => handleDelete(group.id)}
+                    className="text-destructive hover:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <Card className="shadow-elegant">
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="border-b">
+                  <tr className="text-left">
+                    <th className="p-4 font-medium">Group Name</th>
+                    <th className="p-4 font-medium">Description</th>
+                    <th className="p-4 font-medium">Members</th>
+                    <th className="p-4 font-medium">Created</th>
+                    <th className="p-4 font-medium text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td colSpan={5} className="text-center py-8">
+                        Loading groups...
+                      </td>
+                    </tr>
+                  ) : filteredGroups.map((group) => (
+                    <tr key={group.id} className="border-b hover:bg-muted/50 transition-colors">
+                      <td className="p-4">
+                        <p className="font-medium">{group.name}</p>
+                      </td>
+                      <td className="p-4">
+                        <p className="text-muted-foreground text-sm">
+                          {group.description || "No description provided"}
+                        </p>
+                      </td>
+                      <td className="p-4">
+                        <Badge variant="secondary">
+                          {group.memberCount} members
+                        </Badge>
+                      </td>
+                      <td className="p-4 text-sm">
+                        {new Date(group.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="p-4">
+                        <div className="flex justify-end space-x-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleEdit(group)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleManageMembers(group)}
+                          >
+                            <UserPlus className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleSendGroupSMS(group)}
+                          >
+                            <Send className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleDelete(group.id)}
+                            className="text-destructive hover:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {filteredGroups.length === 0 && !loading && (
         <div className="text-center py-12">
