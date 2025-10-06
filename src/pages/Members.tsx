@@ -402,17 +402,19 @@ const Members = () => {
     }
 
     const csvContent = [
-      ['Name', 'Phone', 'Email', 'Groups', 'Gender', 'Age', 'Location', 'Date of Birth', 'Emergency Contact Name', 'Emergency Contact Phone', 'Status', 'Date Joined'].join(','),
+      ['Name', 'Phone', 'Email', 'Groups', 'Location', 'Occupation', 'Gender', 'Age', 'Date of Birth', 'Emergency Contact Name', 'Emergency Contact Phone', 'Status', 'Date Joined'].join(','),
       ...membersToExport.map(member => {
         const age = member.date_of_birth ? getAge(member.date_of_birth) : null
+        const gender = member.gender === 'male' ? 'Male' : member.gender === 'female' ? 'Female' : ''
         return [
           `"${member.name}"`,
           `"${member.phone}"`,
           `"${member.email}"`,
           `"${member.groups.map(g => g.name).join('; ')}"`,
-          `"${member.gender || ''}"`,
-          `"${age !== null ? age : ''}"`,
           `"${member.location || ''}"`,
+          `"${member.occupation || ''}"`,
+          `"${gender}"`,
+          `"${age !== null ? age : ''}"`,
           `"${member.date_of_birth ? new Date(member.date_of_birth).toLocaleDateString() : ''}"`,
           `"${member.emergency_contact_name || ''}"`,
           `"${member.emergency_contact_phone || ''}"`,
@@ -571,7 +573,6 @@ const Members = () => {
                   <SelectContent>
                     <SelectItem value="male">Male</SelectItem>
                     <SelectItem value="female">Female</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -746,7 +747,6 @@ const Members = () => {
               <SelectItem value="all">All Genders</SelectItem>
               <SelectItem value="male">Male</SelectItem>
               <SelectItem value="female">Female</SelectItem>
-              <SelectItem value="other">Other</SelectItem>
             </SelectContent>
           </Select>
           <Select value={selectedAgeRange} onValueChange={setSelectedAgeRange}>
