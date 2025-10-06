@@ -98,7 +98,7 @@ const Members = () => {
             groups: groups,
             location: member.location,
             date_of_birth: member.date_of_birth,
-            occupation: member.location,
+            occupation: member.occupation,
             gender: member.gender,
             status: member.status,
             image_url: member.image_url,
