@@ -182,11 +182,13 @@ export type Database = {
           email: string | null
           emergency_contact_name: string | null
           emergency_contact_phone: string | null
+          gender: string | null
           group_id: string | null
           id: string
           image_url: string | null
           location: string | null
           name: string
+          occupation: string | null
           phone: string
           status: string
           updated_at: string
@@ -197,11 +199,13 @@ export type Database = {
           email?: string | null
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
+          gender?: string | null
           group_id?: string | null
           id?: string
           image_url?: string | null
           location?: string | null
           name: string
+          occupation?: string | null
           phone: string
           status?: string
           updated_at?: string
@@ -212,11 +216,13 @@ export type Database = {
           email?: string | null
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
+          gender?: string | null
           group_id?: string | null
           id?: string
           image_url?: string | null
           location?: string | null
           name?: string
+          occupation?: string | null
           phone?: string
           status?: string
           updated_at?: string

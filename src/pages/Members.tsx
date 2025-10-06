@@ -21,6 +21,7 @@ interface Member {
   location: string | null
   date_of_birth: string | null
   occupation: string | null
+  gender: string | null
   status: string
   image_url: string | null
   emergency_contact_name?: string | null
@@ -35,6 +36,8 @@ const Members = () => {
 
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedGroup, setSelectedGroup] = useState("all")
+  const [selectedGender, setSelectedGender] = useState("all")
+  const [selectedAgeRange, setSelectedAgeRange] = useState("all")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingMember, setEditingMember] = useState<Member | null>(null)
   const [formData, setFormData] = useState({
@@ -44,6 +47,7 @@ const Members = () => {
     groups: [] as string[],
     location: "",
     occupation: "",
+    gender: "",
     day: "",
     month: "",
     year: "",
@@ -94,7 +98,8 @@ const Members = () => {
             groups: groups,
             location: member.location,
             date_of_birth: member.date_of_birth,
-            occupation: member.location, // Using location as occupation field doesn't exist in types
+            occupation: member.location,
+            gender: member.gender,
             status: member.status,
             image_url: member.image_url,
             emergency_contact_name: member.emergency_contact_name,
@@ -131,12 +136,54 @@ const Members = () => {
     }
   }
 
+  const getAge = (dateOfBirth: string | null): number | null => {
+    if (!dateOfBirth) return null
+    const today = new Date()
+    const birthDate = new Date(dateOfBirth)
+    let age = today.getFullYear() - birthDate.getFullYear()
+    const monthDiff = today.getMonth() - birthDate.getMonth()
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--
+    }
+    return age
+  }
+
   const filteredMembers = members.filter(member => {
     const matchesSearch = member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (member.phone && member.phone.includes(searchTerm)) ||
                          member.email.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesGroup = selectedGroup === "all" || member.groups.some(g => g.id === selectedGroup)
-    return matchesSearch && matchesGroup
+    const matchesGender = selectedGender === "all" || member.gender === selectedGender
+    
+    let matchesAgeRange = true
+    if (selectedAgeRange !== "all" && member.date_of_birth) {
+      const age = getAge(member.date_of_birth)
+      if (age !== null) {
+        switch (selectedAgeRange) {
+          case "0-12":
+            matchesAgeRange = age >= 0 && age <= 12
+            break
+          case "13-19":
+            matchesAgeRange = age >= 13 && age <= 19
+            break
+          case "20-35":
+            matchesAgeRange = age >= 20 && age <= 35
+            break
+          case "36-59":
+            matchesAgeRange = age >= 36 && age <= 59
+            break
+          case "60+":
+            matchesAgeRange = age >= 60
+            break
+        }
+      } else {
+        matchesAgeRange = false
+      }
+    } else if (selectedAgeRange !== "all") {
+      matchesAgeRange = false
+    }
+    
+    return matchesSearch && matchesGroup && matchesGender && matchesAgeRange
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -163,6 +210,7 @@ const Members = () => {
             email: formData.email || null,
             location: formData.location || null,
             occupation: formData.occupation || null,
+            gender: formData.gender || null,
             date_of_birth: (formData.day && formData.month && formData.year)
               ? `${formData.year}-${formData.month.padStart(2, '0')}-${formData.day.padStart(2, '0')}`
               : null,
@@ -204,6 +252,7 @@ const Members = () => {
             email: formData.email || null,
             location: formData.location || null,
             occupation: formData.occupation || null,
+            gender: formData.gender || null,
             date_of_birth: (formData.day && formData.month && formData.year)
               ? `${formData.year}-${formData.month.padStart(2, '0')}-${formData.day.padStart(2, '0')}`
               : null,
@@ -235,7 +284,7 @@ const Members = () => {
       await loadMembers()
       
       // Reset form
-      setFormData({ name: "", phone: "", email: "", groups: [], location: "", occupation: "", day: "", month: "", year: "", imageUrl: "", emergencyContactName: "", emergencyContactPhone: "" })
+      setFormData({ name: "", phone: "", email: "", groups: [], location: "", occupation: "", gender: "", day: "", month: "", year: "", imageUrl: "", emergencyContactName: "", emergencyContactPhone: "" })
       setEditingMember(null)
       setIsDialogOpen(false)
     } catch (error) {
@@ -267,6 +316,7 @@ const Members = () => {
       groups: member.groups.map(g => g.id),
       location: member.location || '',
       occupation: member.occupation || '',
+      gender: member.gender || '',
       day,
       month,
       year,
@@ -335,7 +385,7 @@ const Members = () => {
 
   const handleNewMember = () => {
     setEditingMember(null)
-    setFormData({ name: "", phone: "", email: "", groups: [], location: "", occupation: "", day: "", month: "", year: "", imageUrl: "", emergencyContactName: "", emergencyContactPhone: "" })
+    setFormData({ name: "", phone: "", email: "", groups: [], location: "", occupation: "", gender: "", day: "", month: "", year: "", imageUrl: "", emergencyContactName: "", emergencyContactPhone: "" })
     setIsDialogOpen(true)
   }
 
@@ -352,19 +402,24 @@ const Members = () => {
     }
 
     const csvContent = [
-      ['Name', 'Phone', 'Email', 'Groups', 'Location', 'Date of Birth', 'Emergency Contact Name', 'Emergency Contact Phone', 'Status', 'Date Joined'].join(','),
-      ...membersToExport.map(member => [
-        `"${member.name}"`,
-        `"${member.phone}"`,
-        `"${member.email}"`,
-        `"${member.groups.map(g => g.name).join('; ')}"`,
-        `"${member.location || ''}"`,
-        `"${member.date_of_birth ? new Date(member.date_of_birth).toLocaleDateString() : ''}"`,
-        `"${member.emergency_contact_name || ''}"`,
-        `"${member.emergency_contact_phone || ''}"`,
-        `"${member.status}"`,
-        `"${new Date(member.created_at).toLocaleDateString()}"`
-      ].join(','))
+      ['Name', 'Phone', 'Email', 'Groups', 'Gender', 'Age', 'Location', 'Date of Birth', 'Emergency Contact Name', 'Emergency Contact Phone', 'Status', 'Date Joined'].join(','),
+      ...membersToExport.map(member => {
+        const age = member.date_of_birth ? getAge(member.date_of_birth) : null
+        return [
+          `"${member.name}"`,
+          `"${member.phone}"`,
+          `"${member.email}"`,
+          `"${member.groups.map(g => g.name).join('; ')}"`,
+          `"${member.gender || ''}"`,
+          `"${age !== null ? age : ''}"`,
+          `"${member.location || ''}"`,
+          `"${member.date_of_birth ? new Date(member.date_of_birth).toLocaleDateString() : ''}"`,
+          `"${member.emergency_contact_name || ''}"`,
+          `"${member.emergency_contact_phone || ''}"`,
+          `"${member.status}"`,
+          `"${new Date(member.created_at).toLocaleDateString()}"`
+        ].join(',')
+      })
     ].join('\n')
 
     const blob = new Blob([csvContent], { type: 'text/csv' })
@@ -505,6 +560,22 @@ const Members = () => {
                 />
               </div>
               <div className="space-y-2">
+                <Label htmlFor="gender">Gender</Label>
+                <Select 
+                  value={formData.gender || ""} 
+                  onValueChange={(value) => setFormData({...formData, gender: value})}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select gender" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="male">Male</SelectItem>
+                    <SelectItem value="female">Female</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
                 <Label>Date of Birth</Label>
                 <div className="grid grid-cols-3 gap-2">
                   <div>
@@ -637,33 +708,72 @@ const Members = () => {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search members..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
+      <div className="flex flex-col space-y-4">
+        <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search members..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          <Select value={selectedGroup} onValueChange={setSelectedGroup}>
+            <SelectTrigger className="w-full sm:w-48">
+              <SelectValue placeholder="Filter by group" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Groups</SelectItem>
+              {groups.map((group) => (
+                <SelectItem key={group.id} value={group.id}>
+                  {group.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button variant="outline" onClick={exportToCSV}>
+            <Download className="h-4 w-4 mr-2" />
+            Export CSV
+          </Button>
         </div>
-        <Select value={selectedGroup} onValueChange={setSelectedGroup}>
-          <SelectTrigger className="w-full sm:w-48">
-            <SelectValue placeholder="Filter by group" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Categories</SelectItem>
-            {groups.map((group) => (
-              <SelectItem key={group.id} value={group.id}>
-                {group.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Button variant="outline" onClick={exportToCSV}>
-          <Download className="h-4 w-4 mr-2" />
-          Export CSV
-        </Button>
+        <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
+          <Select value={selectedGender} onValueChange={setSelectedGender}>
+            <SelectTrigger className="w-full sm:w-48">
+              <SelectValue placeholder="Filter by gender" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Genders</SelectItem>
+              <SelectItem value="male">Male</SelectItem>
+              <SelectItem value="female">Female</SelectItem>
+              <SelectItem value="other">Other</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={selectedAgeRange} onValueChange={setSelectedAgeRange}>
+            <SelectTrigger className="w-full sm:w-48">
+              <SelectValue placeholder="Filter by age range" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Ages</SelectItem>
+              <SelectItem value="0-12">0-12 years</SelectItem>
+              <SelectItem value="13-19">13-19 years</SelectItem>
+              <SelectItem value="20-35">20-35 years</SelectItem>
+              <SelectItem value="36-59">36-59 years</SelectItem>
+              <SelectItem value="60+">60+ years</SelectItem>
+            </SelectContent>
+          </Select>
+          {(selectedGender !== "all" || selectedAgeRange !== "all") && (
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setSelectedGender("all")
+                setSelectedAgeRange("all")
+              }}
+            >
+              Clear Filters
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Members Table */}
