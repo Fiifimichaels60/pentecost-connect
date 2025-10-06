@@ -338,43 +338,74 @@ export default function Compose() {
               </TabsList>
 
               <TabsContent value="groups" className="space-y-4">
-                <div className="grid gap-4">
-                  {groups.length === 0 ? (
-                    <p className="text-muted-foreground text-center py-8">
-                      No groups available
-                    </p>
-                  ) : (
-                    groups.map((group) => (
-                      <div
-                        key={group.id}
-                        className="flex items-center space-x-3 p-4 border rounded-lg hover:bg-muted/50"
-                      >
-                        <Checkbox
-                          id={group.id}
-                          checked={selectedGroups.includes(group.id)}
-                          onCheckedChange={() => handleGroupToggle(group.id)}
-                        />
-                        <div className="flex-1">
-                          <Label htmlFor={group.id} className="font-medium cursor-pointer">
-                            {group.name}
-                          </Label>
-                          <p className="text-sm text-muted-foreground">
-                            {group.description}
-                          </p>
-                        </div>
-                        <Badge variant="secondary">
-                          {group.member_count} members
-                        </Badge>
-                      </div>
-                    ))
-                  )}
+                <div>
+                  <Label className="mb-2 block">Select Groups</Label>
+                  <div className="border rounded-lg overflow-hidden">
+                    <div className="h-64 overflow-y-auto p-3 space-y-2">
+                      {groups.length === 0 ? (
+                        <p className="text-muted-foreground text-center py-8">
+                          No groups available
+                        </p>
+                      ) : (
+                        groups.map((group) => (
+                          <div
+                            key={group.id}
+                            className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50"
+                          >
+                            <Checkbox
+                              id={group.id}
+                              checked={selectedGroups.includes(group.id)}
+                              onCheckedChange={() => handleGroupToggle(group.id)}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <Label htmlFor={group.id} className="font-medium cursor-pointer truncate block">
+                                {group.name}
+                              </Label>
+                              {group.description && (
+                                <p className="text-sm text-muted-foreground truncate">
+                                  {group.description}
+                                </p>
+                              )}
+                            </div>
+                            <Badge variant="secondary" className="flex-shrink-0">
+                              {group.member_count} members
+                            </Badge>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 {selectedGroups.length > 0 && (
-                  <div className="mt-4 p-4 bg-muted rounded-lg">
-                    <h4 className="font-medium mb-2">Selected Recipients:</h4>
-                    <div className="text-sm text-muted-foreground">
-                      {members.length} members from {selectedGroups.length} group(s)
+                  <div className="p-4 bg-muted rounded-lg">
+                    <h4 className="font-medium mb-2">Selected Recipients Preview</h4>
+                    <div className="border rounded-md overflow-hidden bg-background">
+                      <div className="h-32 overflow-y-auto p-3 space-y-1">
+                        {members.slice(0, 3).map((member) => (
+                          <div key={member.id} className="text-sm p-2 rounded bg-muted/50">
+                            {member.first_name} {member.last_name} - {member.phone_number}
+                          </div>
+                        ))}
+                        {members.length > 3 && (
+                          <div className="text-sm p-2 text-muted-foreground italic">
+                            ... and {members.length - 3} more (scroll to see all)
+                          </div>
+                        )}
+                        {members.slice(3).map((member) => (
+                          <div key={member.id} className="text-sm p-2 rounded bg-muted/50">
+                            {member.first_name} {member.last_name} - {member.phone_number}
+                          </div>
+                        ))}
+                        {members.length === 0 && (
+                          <p className="text-sm text-muted-foreground text-center py-4">
+                            Loading members...
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-sm text-muted-foreground mt-2">
+                      Total: {members.length} members from {selectedGroups.length} group(s)
                     </div>
                   </div>
                 )}
@@ -383,40 +414,42 @@ export default function Compose() {
               <TabsContent value="manual" className="space-y-4">
                 <div className="space-y-4">
                   <div>
-                    <Label>Select Members</Label>
-                    <div className="mt-2 max-h-64 overflow-y-auto border rounded-lg p-4 space-y-3">
-                      {allMembers.length === 0 ? (
-                        <p className="text-muted-foreground text-center py-4">
-                          No members available
-                        </p>
-                      ) : (
-                        allMembers.map((member) => (
-                          <div
-                            key={member.id}
-                            className="flex items-center space-x-3 p-2 hover:bg-muted/50 rounded"
-                          >
-                            <Checkbox
-                              id={`member-${member.id}`}
-                              checked={selectedMembers.includes(member.id)}
-                              onCheckedChange={(checked) => {
-                                if (checked) {
-                                  setSelectedMembers([...selectedMembers, member.id]);
-                                } else {
-                                  setSelectedMembers(selectedMembers.filter(id => id !== member.id));
-                                }
-                              }}
-                            />
-                            <div className="flex-1">
-                              <Label htmlFor={`member-${member.id}`} className="cursor-pointer font-normal">
-                                {member.first_name} {member.last_name}
-                              </Label>
-                              <p className="text-xs text-muted-foreground">
-                                {member.phone_number}
-                              </p>
+                    <Label className="mb-2 block">Select Members</Label>
+                    <div className="border rounded-lg overflow-hidden">
+                      <div className="h-64 overflow-y-auto p-3 space-y-2">
+                        {allMembers.length === 0 ? (
+                          <p className="text-muted-foreground text-center py-4">
+                            No members available
+                          </p>
+                        ) : (
+                          allMembers.map((member) => (
+                            <div
+                              key={member.id}
+                              className="flex items-center space-x-3 p-2 hover:bg-muted/50 rounded"
+                            >
+                              <Checkbox
+                                id={`member-${member.id}`}
+                                checked={selectedMembers.includes(member.id)}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    setSelectedMembers([...selectedMembers, member.id]);
+                                  } else {
+                                    setSelectedMembers(selectedMembers.filter(id => id !== member.id));
+                                  }
+                                }}
+                              />
+                              <div className="flex-1 min-w-0">
+                                <Label htmlFor={`member-${member.id}`} className="cursor-pointer font-normal truncate block">
+                                  {member.first_name} {member.last_name}
+                                </Label>
+                                <p className="text-xs text-muted-foreground truncate">
+                                  {member.phone_number}
+                                </p>
+                              </div>
                             </div>
-                          </div>
-                        ))
-                      )}
+                          ))
+                        )}
+                      </div>
                     </div>
                     {selectedMembers.length > 0 && (
                       <p className="text-sm text-muted-foreground mt-2">

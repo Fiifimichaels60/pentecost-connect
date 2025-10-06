@@ -451,15 +451,15 @@ const Attendance = () => {
       '',
       ['Session Title', 'Date', 'Type', 'Group', 'Total Members', 'Present', 'Absent', 'Attendance Rate', 'Status'].join(','),
       ...filteredData.map(session => [
-        session.title,
-        session.date,
-        session.type,
-        session.group_name || 'All Members',
+        `"${session.title}"`,
+        `"${session.date}"`,
+        `"${session.type}"`,
+        `"${session.group_name || 'All Members'}"`,
         session.totalMembers,
         session.presentCount,
         session.absentCount,
-        `${session.totalMembers > 0 ? Math.round((session.presentCount / session.totalMembers) * 100) : 0}%`,
-        session.status
+        `"${session.totalMembers > 0 ? Math.round((session.presentCount / session.totalMembers) * 100) : 0}%"`,
+        `"${session.status}"`
       ].join(','))
     ].join('\n')
 
@@ -483,10 +483,10 @@ const Attendance = () => {
     const csvContent = [
       ['Member Name', 'Group', 'Phone', 'Status'].join(','),
       ...attendanceMembers.map(member => [
-        member.name,
-        member.group,
-        member.phone || '',
-        member.present ? 'Present' : 'Absent'
+        `"${member.name}"`,
+        `"${member.group}"`,
+        `"${member.phone || ''}"`,
+        `"${member.present ? 'Present' : 'Absent'}"`
       ].join(','))
     ].join('\n')
 
@@ -515,13 +515,89 @@ const Attendance = () => {
     return Math.round((totalAttendance / totalSessions) * 100)
   }
 
+  const [membersNeedingFollowUp, setMembersNeedingFollowUp] = useState<Member[]>([])
+
+  const calculateMembersNeedingFollowUp = async () => {
+    try {
+      const { data: allMembers, error: membersError } = await supabase
+        .from('anaji_members')
+        .select('id, name, phone')
+        .eq('status', 'active')
+
+      if (membersError) throw membersError
+
+      const followUpList: Member[] = []
+
+      for (const member of allMembers || []) {
+        // Get member's groups
+        const { data: memberGroups } = await supabase
+          .from('anaji_member_groups')
+          .select('anaji_groups(name)')
+          .eq('member_id', member.id)
+
+        const groupNames = (memberGroups || [])
+          .map(mg => mg.anaji_groups?.name)
+          .filter(name => name)
+          .join(', ')
+
+        // Get member's latest attendance record
+        const { data: latestRecord, error: recordError } = await supabase
+          .from('attendance_records')
+          .select('marked_at, present, attendance_sessions(date)')
+          .eq('member_id', member.id)
+          .eq('present', true)
+          .order('marked_at', { ascending: false })
+          .limit(1)
+          .single()
+
+        if (recordError && recordError.code !== 'PGRST116') {
+          console.error('Error fetching attendance:', recordError)
+          continue
+        }
+
+        const lastAttendedDate = latestRecord?.attendance_sessions?.date || latestRecord?.marked_at
+        
+        if (!lastAttendedDate) {
+          // Never attended
+          followUpList.push({
+            id: member.id,
+            name: member.name,
+            group: groupNames || "No Group",
+            present: false,
+            phone: member.phone,
+            lastAttended: undefined
+          })
+        } else {
+          const lastDate = new Date(lastAttendedDate)
+          const daysSince = Math.floor((new Date().getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24))
+          
+          if (daysSince > 7) {
+            followUpList.push({
+              id: member.id,
+              name: member.name,
+              group: groupNames || "No Group",
+              present: false,
+              phone: member.phone,
+              lastAttended: lastAttendedDate
+            })
+          }
+        }
+      }
+
+      setMembersNeedingFollowUp(followUpList.slice(0, 5))
+    } catch (error) {
+      console.error('Error calculating follow-up members:', error)
+    }
+  }
+
+  useEffect(() => {
+    if (sessions.length > 0) {
+      calculateMembersNeedingFollowUp()
+    }
+  }, [sessions])
+
   const getRecentAbsentees = () => {
-    // Mock data for demonstration
-    return members.filter(m => {
-      const lastAttended = new Date(m.lastAttended || "2024-01-01")
-      const daysSince = Math.floor((new Date().getTime() - lastAttended.getTime()) / (1000 * 60 * 60 * 24))
-      return daysSince > 7
-    }).slice(0, 5)
+    return membersNeedingFollowUp
   }
 
   if (isMarkingAttendance && currentSession) {

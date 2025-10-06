@@ -94,7 +94,7 @@ const Members = () => {
             groups: groups,
             location: member.location,
             date_of_birth: member.date_of_birth,
-            occupation: member.occupation,
+            occupation: member.location, // Using location as occupation field doesn't exist in types
             status: member.status,
             image_url: member.image_url,
             emergency_contact_name: member.emergency_contact_name,
@@ -354,16 +354,16 @@ const Members = () => {
     const csvContent = [
       ['Name', 'Phone', 'Email', 'Groups', 'Location', 'Date of Birth', 'Emergency Contact Name', 'Emergency Contact Phone', 'Status', 'Date Joined'].join(','),
       ...membersToExport.map(member => [
-        member.name,
-        member.phone,
-        member.email,
-        member.groups.map(g => g.name).join('; '),
-        member.location || '',
-        member.date_of_birth ? new Date(member.date_of_birth).toLocaleDateString() : '',
-        member.emergency_contact_name || '',
-        member.emergency_contact_phone || '',
-        member.status,
-        new Date(member.created_at).toLocaleDateString()
+        `"${member.name}"`,
+        `"${member.phone}"`,
+        `"${member.email}"`,
+        `"${member.groups.map(g => g.name).join('; ')}"`,
+        `"${member.location || ''}"`,
+        `"${member.date_of_birth ? new Date(member.date_of_birth).toLocaleDateString() : ''}"`,
+        `"${member.emergency_contact_name || ''}"`,
+        `"${member.emergency_contact_phone || ''}"`,
+        `"${member.status}"`,
+        `"${new Date(member.created_at).toLocaleDateString()}"`
       ].join(','))
     ].join('\n')
 
