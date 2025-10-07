@@ -479,31 +479,105 @@ const Attendance = () => {
     })
   }
 
-  const exportSessionCSV = (session: AttendanceSession) => {
-    const csvContent = [
-      ['Member Name', 'Group', 'Phone', 'Status'].join(','),
-      ...attendanceMembers.map(member => [
-        `"${member.name}"`,
-        `"${member.group}"`,
-        `"${member.phone || ''}"`,
-        `"${member.present ? 'Present' : 'Absent'}"`
-      ].join(','))
-    ].join('\n')
+  const exportSessionCSV = async (session: AttendanceSession) => {
+    try {
+      // Fetch attendance records for this session from database
+      const { data: attendanceRecords, error } = await supabase
+        .from('attendance_records')
+        .select(`
+          present,
+          anaji_members (
+            id,
+            name,
+            phone
+          )
+        `)
+        .eq('session_id', session.id)
 
-    const blob = new Blob([csvContent], { type: 'text/csv' })
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${session.title}-${session.date}-attendance.csv`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    window.URL.revokeObjectURL(url)
+      if (error) throw error
 
-    toast({
-      title: "Session Exported",
-      description: `${session.title} attendance exported successfully.`
-    })
+      // Fetch member groups
+      const membersWithGroups = await Promise.all(
+        (attendanceRecords || []).map(async (record: any) => {
+          const member = record.anaji_members
+          if (!member) return null
+
+          const { data: memberGroups } = await supabase
+            .from('anaji_member_groups')
+            .select(`
+              anaji_groups (
+                name
+              )
+            `)
+            .eq('member_id', member.id)
+
+          const groupNames = (memberGroups || [])
+            .map((mg: any) => mg.anaji_groups?.name)
+            .filter((name: string) => name)
+            .join(', ')
+
+          return {
+            name: member.name,
+            group: groupNames || 'No Group',
+            phone: member.phone || '',
+            present: record.present
+          }
+        })
+      )
+
+      const validMembers = membersWithGroups.filter(m => m !== null)
+
+      if (validMembers.length === 0) {
+        toast({
+          title: "No Data",
+          description: "No attendance records found for this session.",
+          variant: "destructive"
+        })
+        return
+      }
+
+      const presentCount = validMembers.filter(m => m.present).length
+      const absentCount = validMembers.length - presentCount
+
+      const csvContent = [
+        `Session: ${session.title}`,
+        `Date: ${session.date}`,
+        `Type: ${session.type}`,
+        `Total Present: ${presentCount}`,
+        `Total Absent: ${absentCount}`,
+        `Total Members: ${validMembers.length}`,
+        '',
+        ['Member Name', 'Group', 'Phone', 'Status'].join(','),
+        ...validMembers.map(member => [
+          `"${member.name}"`,
+          `"${member.group}"`,
+          `"${member.phone}"`,
+          `"${member.present ? 'Present' : 'Absent'}"`
+        ].join(','))
+      ].join('\n')
+
+      const blob = new Blob([csvContent], { type: 'text/csv' })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${session.title}-${session.date}-attendance.csv`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(url)
+
+      toast({
+        title: "Session Exported",
+        description: `${session.title} attendance exported with ${presentCount} present and ${absentCount} absent.`
+      })
+    } catch (error) {
+      console.error('Error exporting session:', error)
+      toast({
+        title: "Export Failed",
+        description: "Failed to export session attendance.",
+        variant: "destructive"
+      })
+    }
   }
 
   const getAttendanceRate = () => {

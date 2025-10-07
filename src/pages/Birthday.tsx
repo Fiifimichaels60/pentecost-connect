@@ -63,10 +63,7 @@ const Birthday = () => {
       // Load members with birthdays from anaji_members
       const { data: membersData, error: membersError } = await supabase
         .from('anaji_members')
-        .select(`
-          *,
-          anaji_groups(name)
-        `)
+        .select('*')
         .not('date_of_birth', 'is', null)
         .order('date_of_birth')
 
@@ -80,17 +77,36 @@ const Birthday = () => {
 
       if (groupsError) throw groupsError
 
-      const formattedBirthdays = (membersData || []).map(member => ({
-        id: member.id,
-        name: member.name,
-        phone: member.phone,
-        email: member.email,
-        birthDate: member.date_of_birth,
-        location: member.location,
-        group: (member as any).anaji_groups?.name || 'No Group',
-        autoSend: true, // Default to auto-send for now
-        lastSent: undefined
-      }))
+      // For each member, fetch their groups
+      const formattedBirthdays = await Promise.all(
+        (membersData || []).map(async (member) => {
+          const { data: memberGroups } = await supabase
+            .from('anaji_member_groups')
+            .select(`
+              anaji_groups (
+                name
+              )
+            `)
+            .eq('member_id', member.id)
+            .limit(1)
+
+          const groupName = memberGroups && memberGroups.length > 0
+            ? (memberGroups[0].anaji_groups as any)?.name
+            : 'No Group'
+
+          return {
+            id: member.id,
+            name: member.name,
+            phone: member.phone,
+            email: member.email,
+            birthDate: member.date_of_birth,
+            location: member.location,
+            group: groupName,
+            autoSend: true,
+            lastSent: undefined
+          }
+        })
+      )
 
       setBirthdays(formattedBirthdays)
       setGroups(groupsData || [])
