@@ -7,9 +7,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
-import { History as HistoryIcon, Search, Trash2, Eye, CheckCircle, XCircle, Clock, Filter } from "lucide-react"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { History as HistoryIcon, Search, Trash2, Eye, CheckCircle, XCircle, Clock, Filter, Calendar, AlertCircle } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
+import { format } from "date-fns"
 
 interface SMSHistory {
   id: string
@@ -26,9 +28,25 @@ interface SMSHistory {
   cost: number
 }
 
+interface ScheduledSMS {
+  id: string
+  campaign_name: string
+  message: string
+  recipients: string[]
+  recipient_type: "single" | "group" | "manual"
+  recipient_name: string
+  recipient_count: number
+  scheduled_date: string
+  scheduled_time: string
+  status: "scheduled" | "sending" | "sent" | "failed" | "cancelled"
+  created_at: string
+}
+
 const History = () => {
   const [history, setHistory] = useState<SMSHistory[]>([])
+  const [scheduledSMS, setScheduledSMS] = useState<ScheduledSMS[]>([])
   const [loading, setLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState("history")
 
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
@@ -40,7 +58,30 @@ const History = () => {
 
   useEffect(() => {
     loadHistory()
+    loadScheduledSMS()
   }, [])
+
+  const loadScheduledSMS = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('anaji_scheduled_sms')
+        .select('*')
+        .order('scheduled_date', { ascending: false })
+        .order('scheduled_time', { ascending: false })
+        .limit(200);
+
+      if (error) throw error;
+
+      setScheduledSMS(data || []);
+    } catch (error) {
+      console.error('Error loading scheduled SMS:', error)
+      toast({
+        title: "Error",
+        description: "Failed to load scheduled SMS",
+        variant: "destructive"
+      })
+    }
+  }
 
   const loadHistory = async () => {
     try {
@@ -83,6 +124,56 @@ const History = () => {
       })
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleCancelScheduled = async (itemId: string) => {
+    try {
+      const { error } = await supabase
+        .from('anaji_scheduled_sms')
+        .update({ status: 'cancelled' })
+        .eq('id', itemId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Scheduled SMS cancelled successfully.",
+      });
+
+      await loadScheduledSMS();
+    } catch (error) {
+      console.error('Error cancelling scheduled SMS:', error)
+      toast({
+        title: "Error",
+        description: "Failed to cancel scheduled SMS. Please try again.",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const handleDeleteScheduled = async (itemId: string) => {
+    try {
+      const { error } = await supabase
+        .from('anaji_scheduled_sms')
+        .delete()
+        .eq('id', itemId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Scheduled SMS deleted successfully.",
+      });
+
+      await loadScheduledSMS();
+    } catch (error) {
+      console.error('Error deleting scheduled SMS:', error)
+      toast({
+        title: "Error",
+        description: "Failed to delete scheduled SMS. Please try again.",
+        variant: "destructive"
+      })
     }
   }
 
@@ -226,6 +317,8 @@ const History = () => {
     cost: history.reduce((sum, item) => sum + item.cost, 0)
   }
 
+  const scheduledCount = scheduledSMS.filter(s => s.status === 'scheduled').length;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -277,8 +370,21 @@ const History = () => {
         </Card>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col lg:flex-row space-y-4 lg:space-y-0 lg:space-x-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList>
+          <TabsTrigger value="history">
+            <HistoryIcon className="h-4 w-4 mr-2" />
+            History
+          </TabsTrigger>
+          <TabsTrigger value="scheduled">
+            <Calendar className="h-4 w-4 mr-2" />
+            Scheduled ({scheduledCount})
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="history" className="space-y-6">
+          {/* Filters */}
+          <div className="flex flex-col lg:flex-row space-y-4 lg:space-y-0 lg:space-x-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -311,10 +417,10 @@ const History = () => {
             <SelectItem value="manual">Manual</SelectItem>
           </SelectContent>
         </Select>
-      </div>
+          </div>
 
-      {/* History Table */}
-      <Card className="shadow-elegant">
+          {/* History Table */}
+          <Card className="shadow-elegant">
         <CardContent className="p-0">
           <Table>
             <TableHeader>
@@ -458,7 +564,111 @@ const History = () => {
             </div>
           )}
         </CardContent>
-      </Card>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="scheduled" className="space-y-6">
+          <Card className="shadow-elegant">
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Campaign Name</TableHead>
+                    <TableHead>Message</TableHead>
+                    <TableHead>Recipients</TableHead>
+                    <TableHead>Scheduled Date</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {scheduledSMS.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-12">
+                        <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                        <h3 className="text-lg font-medium mb-2">No Scheduled Messages</h3>
+                        <p className="text-muted-foreground">
+                          Schedule SMS from the Compose page to see them here
+                        </p>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    scheduledSMS.map((item) => (
+                      <TableRow key={item.id}>
+                        <TableCell className="font-medium">{item.campaign_name}</TableCell>
+                        <TableCell className="max-w-xs">
+                          <p className="truncate text-sm">
+                            {item.message.length > 50 ? `${item.message.substring(0, 50)}...` : item.message}
+                          </p>
+                          <span className="text-xs text-muted-foreground">
+                            {item.message.length} chars
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <div className="space-y-1">
+                            <p className="text-sm font-medium">{item.recipient_name}</p>
+                            <Badge variant="outline" className="text-xs">
+                              {item.recipient_count} recipients
+                            </Badge>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="space-y-1">
+                            <div className="flex items-center space-x-1">
+                              <Calendar className="h-3 w-3 text-muted-foreground" />
+                              <span className="text-sm">
+                                {format(new Date(item.scheduled_date), 'PPP')}
+                              </span>
+                            </div>
+                            <div className="flex items-center space-x-1">
+                              <Clock className="h-3 w-3 text-muted-foreground" />
+                              <span className="text-xs text-muted-foreground">{item.scheduled_time}</span>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              item.status === 'scheduled' ? 'default' :
+                              item.status === 'sent' ? 'secondary' :
+                              item.status === 'cancelled' ? 'outline' :
+                              'destructive'
+                            }
+                          >
+                            {item.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end space-x-2">
+                            {item.status === 'scheduled' && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleCancelScheduled(item.id)}
+                              >
+                                <AlertCircle className="h-4 w-4 mr-1" />
+                                Cancel
+                              </Button>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteScheduled(item.id)}
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       {/* Message Details Modal */}
       {showMessageDetails && (

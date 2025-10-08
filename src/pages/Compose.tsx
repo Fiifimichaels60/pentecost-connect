@@ -7,9 +7,13 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Send, Users, Phone, MessageSquare } from 'lucide-react';
+import { Send, Users, Phone, MessageSquare, Calendar as CalendarIcon, Clock } from 'lucide-react';
+import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
 
 interface Group {
   id: string;
@@ -35,6 +39,9 @@ export default function Compose() {
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
   const [isSending, setIsSending] = useState(false);
   const [activeTab, setActiveTab] = useState('groups');
+  const [isScheduled, setIsScheduled] = useState(false);
+  const [scheduledDate, setScheduledDate] = useState<Date>();
+  const [scheduledTime, setScheduledTime] = useState('');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -196,6 +203,25 @@ export default function Compose() {
       return;
     }
 
+    if (isScheduled) {
+      if (!scheduledDate) {
+        toast({
+          title: 'Error',
+          description: 'Please select a scheduled date',
+          variant: 'destructive',
+        });
+        return;
+      }
+      if (!scheduledTime) {
+        toast({
+          title: 'Error',
+          description: 'Please select a scheduled time',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
     setIsSending(true);
 
     try {
@@ -233,6 +259,40 @@ export default function Compose() {
         throw new Error('Maximum 100 recipients allowed per campaign');
       }
 
+      if (isScheduled && scheduledDate && scheduledTime) {
+        const { error } = await supabase
+          .from('anaji_scheduled_sms')
+          .insert({
+            campaign_name: `Scheduled SMS - ${format(scheduledDate, 'PPP')} ${scheduledTime}`,
+            message: message.trim(),
+            recipients,
+            recipient_type: recipientType,
+            recipient_name: recipientName,
+            recipient_count: recipients.length,
+            group_id: activeTab === 'groups' && selectedGroups.length === 1 ? selectedGroups[0] : null,
+            scheduled_date: format(scheduledDate, 'yyyy-MM-dd'),
+            scheduled_time: scheduledTime,
+            status: 'scheduled',
+          });
+
+        if (error) throw error;
+
+        toast({
+          title: 'Success',
+          description: `SMS scheduled successfully for ${format(scheduledDate, 'PPP')} at ${scheduledTime}`,
+        });
+
+        setMessage('');
+        setSelectedGroups([]);
+        setSelectedMembers([]);
+        setManualRecipients('');
+        setMembers([]);
+        setIsScheduled(false);
+        setScheduledDate(undefined);
+        setScheduledTime('');
+        return;
+      }
+
       const { data, error } = await supabase.functions.invoke('send-sms', {
         body: {
           campaignName: `SMS Campaign - ${new Date().toLocaleString()}`,
@@ -255,12 +315,14 @@ export default function Compose() {
         description: `SMS sent successfully! ${data.delivered} delivered, ${data.failed} failed.`,
       });
 
-      // Reset form
       setMessage('');
       setSelectedGroups([]);
       setSelectedMembers([]);
       setManualRecipients('');
       setMembers([]);
+      setIsScheduled(false);
+      setScheduledDate(undefined);
+      setScheduledTime('');
 
     } catch (error) {
       console.error('Error sending SMS:', error);
@@ -311,6 +373,64 @@ export default function Compose() {
                   <span>{message.length} characters</span>
                   <span>{Math.ceil(message.length / 160)} SMS</span>
                 </div>
+              </div>
+
+              <div className="border-t pt-4">
+                <div className="flex items-center space-x-2 mb-4">
+                  <Checkbox
+                    id="schedule"
+                    checked={isScheduled}
+                    onCheckedChange={(checked) => setIsScheduled(checked as boolean)}
+                  />
+                  <Label htmlFor="schedule" className="cursor-pointer font-medium">
+                    Schedule for later
+                  </Label>
+                </div>
+
+                {isScheduled && (
+                  <div className="grid grid-cols-2 gap-4 pl-6">
+                    <div className="space-y-2">
+                      <Label>Date</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className={cn(
+                              'w-full justify-start text-left font-normal',
+                              !scheduledDate && 'text-muted-foreground'
+                            )}
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {scheduledDate ? format(scheduledDate, 'PPP') : 'Pick a date'}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                          <Calendar
+                            mode="single"
+                            selected={scheduledDate}
+                            onSelect={setScheduledDate}
+                            disabled={(date) => date < new Date()}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="time">Time</Label>
+                      <div className="relative">
+                        <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="time"
+                          type="time"
+                          value={scheduledTime}
+                          onChange={(e) => setScheduledTime(e.target.value)}
+                          className="pl-10"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </CardContent>
@@ -525,12 +645,21 @@ export default function Compose() {
                 {isSending ? (
                   <>
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                    Sending SMS...
+                    {isScheduled ? 'Scheduling SMS...' : 'Sending SMS...'}
                   </>
                 ) : (
                   <>
-                    <Send className="h-4 w-4 mr-2" />
-                    Send SMS to {getRecipientCount()} Recipients
+                    {isScheduled ? (
+                      <>
+                        <CalendarIcon className="h-4 w-4 mr-2" />
+                        Schedule SMS for {getRecipientCount()} Recipients
+                      </>
+                    ) : (
+                      <>
+                        <Send className="h-4 w-4 mr-2" />
+                        Send SMS to {getRecipientCount()} Recipients
+                      </>
+                    )}
                   </>
                 )}
               </Button>
