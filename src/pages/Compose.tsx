@@ -388,47 +388,63 @@ export default function Compose() {
                 </div>
 
                 {isScheduled && (
-                  <div className="grid grid-cols-2 gap-4 pl-6">
-                    <div className="space-y-2">
-                      <Label>Date</Label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className={cn(
-                              'w-full justify-start text-left font-normal',
-                              !scheduledDate && 'text-muted-foreground'
-                            )}
-                          >
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {scheduledDate ? format(scheduledDate, 'PPP') : 'Pick a date'}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0">
-                          <Calendar
-                            mode="single"
-                            selected={scheduledDate}
-                            onSelect={setScheduledDate}
-                            disabled={(date) => date < new Date()}
-                            initialFocus
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
+                  <div className="space-y-4 pl-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Select Date</Label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className={cn(
+                                'w-full justify-start text-left font-normal h-10',
+                                !scheduledDate && 'text-muted-foreground'
+                              )}
+                            >
+                              <CalendarIcon className="mr-2 h-4 w-4" />
+                              {scheduledDate ? format(scheduledDate, 'PPP') : 'Pick a date'}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={scheduledDate}
+                              onSelect={setScheduledDate}
+                              disabled={(date) => {
+                                const today = new Date();
+                                today.setHours(0, 0, 0, 0);
+                                return date < today;
+                              }}
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="time">Time</Label>
-                      <div className="relative">
-                        <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          id="time"
-                          type="time"
-                          value={scheduledTime}
-                          onChange={(e) => setScheduledTime(e.target.value)}
-                          className="pl-10"
-                        />
+                      <div className="space-y-2">
+                        <Label htmlFor="time">Select Time</Label>
+                        <div className="relative">
+                          <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none z-10" />
+                          <Input
+                            id="time"
+                            type="time"
+                            value={scheduledTime}
+                            onChange={(e) => setScheduledTime(e.target.value)}
+                            className="pl-10 h-10"
+                            required={isScheduled}
+                          />
+                        </div>
                       </div>
                     </div>
+
+                    {scheduledDate && scheduledTime && (
+                      <div className="bg-muted/50 p-3 rounded-lg border">
+                        <p className="text-sm font-medium flex items-center gap-2">
+                          <CalendarIcon className="h-4 w-4" />
+                          Scheduled for: {format(scheduledDate, 'PPP')} at {scheduledTime}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
