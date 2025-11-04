@@ -72,7 +72,21 @@ const History = () => {
 
       if (error) throw error;
 
-      setScheduledSMS(data || []);
+      const typedData: ScheduledSMS[] = (data || []).map((item: any) => ({
+        id: item.id,
+        campaign_name: item.campaign_name,
+        message: item.message,
+        recipients: item.recipients || [],
+        recipient_type: item.recipient_type as ScheduledSMS['recipient_type'],
+        recipient_name: item.recipient_name,
+        recipient_count: item.recipient_count,
+        scheduled_date: item.scheduled_date,
+        scheduled_time: item.scheduled_time,
+        status: item.status as ScheduledSMS['status'],
+        created_at: item.created_at,
+      }));
+
+      setScheduledSMS(typedData);
     } catch (error) {
       console.error('Error loading scheduled SMS:', error)
       toast({

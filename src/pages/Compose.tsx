@@ -388,8 +388,8 @@ export default function Compose() {
                 </div>
 
                 {isScheduled && (
-                  <div className="space-y-4 pl-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-4 pl-0 sm:pl-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label>Select Date</Label>
                         <Popover>
@@ -397,15 +397,17 @@ export default function Compose() {
                             <Button
                               variant="outline"
                               className={cn(
-                                'w-full justify-start text-left font-normal h-10',
+                                'w-full justify-start text-left font-normal h-10 text-sm',
                                 !scheduledDate && 'text-muted-foreground'
                               )}
                             >
-                              <CalendarIcon className="mr-2 h-4 w-4" />
-                              {scheduledDate ? format(scheduledDate, 'PPP') : 'Pick a date'}
+                              <CalendarIcon className="mr-2 h-4 w-4 flex-shrink-0" />
+                              <span className="truncate">
+                                {scheduledDate ? format(scheduledDate, 'PPP') : 'Pick a date'}
+                              </span>
                             </Button>
                           </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
+                          <PopoverContent className="w-auto p-0" align="center" sideOffset={8}>
                             <Calendar
                               mode="single"
                               selected={scheduledDate}
@@ -416,6 +418,7 @@ export default function Compose() {
                                 return date < today;
                               }}
                               initialFocus
+                              className="pointer-events-auto"
                             />
                           </PopoverContent>
                         </Popover>
@@ -430,7 +433,7 @@ export default function Compose() {
                             type="time"
                             value={scheduledTime}
                             onChange={(e) => setScheduledTime(e.target.value)}
-                            className="pl-10 h-10"
+                            className="pl-10 h-10 text-sm"
                             required={isScheduled}
                           />
                         </div>
@@ -439,9 +442,11 @@ export default function Compose() {
 
                     {scheduledDate && scheduledTime && (
                       <div className="bg-muted/50 p-3 rounded-lg border">
-                        <p className="text-sm font-medium flex items-center gap-2">
-                          <CalendarIcon className="h-4 w-4" />
-                          Scheduled for: {format(scheduledDate, 'PPP')} at {scheduledTime}
+                        <p className="text-xs sm:text-sm font-medium flex items-start sm:items-center gap-2 flex-wrap">
+                          <CalendarIcon className="h-4 w-4 flex-shrink-0 mt-0.5 sm:mt-0" />
+                          <span className="break-words">
+                            Scheduled for: {format(scheduledDate, 'PPP')} at {scheduledTime}
+                          </span>
                         </p>
                       </div>
                     )}

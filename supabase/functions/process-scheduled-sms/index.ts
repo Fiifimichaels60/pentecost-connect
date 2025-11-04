@@ -21,15 +21,13 @@ Deno.serve(async (req: Request) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const now = new Date();
-    const currentDate = now.toISOString().split('T')[0];
-    const currentTime = now.toTimeString().split(' ')[0].substring(0, 5);
-
+    
+    // Fetch scheduled messages that should be sent
+    // We combine date and time for proper comparison
     const { data: scheduledMessages, error: fetchError } = await supabase
       .from('anaji_scheduled_sms')
       .select('*')
-      .eq('status', 'scheduled')
-      .lte('scheduled_date', currentDate)
-      .lte('scheduled_time', currentTime);
+      .eq('status', 'scheduled');
 
     if (fetchError) throw fetchError;
 
@@ -45,9 +43,27 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    // Filter messages that are due to be sent
+    const messagesToSend = scheduledMessages.filter((msg: any) => {
+      const scheduledDateTime = new Date(`${msg.scheduled_date}T${msg.scheduled_time}:00`);
+      return scheduledDateTime <= now;
+    });
+
+    if (messagesToSend.length === 0) {
+      return new Response(
+        JSON.stringify({ message: 'No messages due to be sent', processed: 0 }),
+        {
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+    }
+
     const results = [];
 
-    for (const scheduled of scheduledMessages) {
+    for (const scheduled of messagesToSend) {
       try {
         const { error: updateError } = await supabase
           .from('anaji_scheduled_sms')
@@ -183,7 +199,7 @@ Deno.serve(async (req: Request) => {
     return new Response(
       JSON.stringify({
         success: true,
-        processed: scheduledMessages.length,
+        processed: messagesToSend.length,
         results,
       }),
       {
