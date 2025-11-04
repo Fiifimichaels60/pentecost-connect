@@ -42,6 +42,8 @@ export default function Compose() {
   const [isScheduled, setIsScheduled] = useState(false);
   const [scheduledDate, setScheduledDate] = useState<Date>();
   const [scheduledTime, setScheduledTime] = useState('');
+  const [groupSearchTerm, setGroupSearchTerm] = useState('');
+  const [memberSearchTerm, setMemberSearchTerm] = useState('');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -481,14 +483,24 @@ export default function Compose() {
               <TabsContent value="groups" className="space-y-4">
                 <div>
                   <Label className="mb-2 block">Select Groups</Label>
+                  <Input
+                    placeholder="Search groups by name..."
+                    value={groupSearchTerm}
+                    onChange={(e) => setGroupSearchTerm(e.target.value)}
+                    className="mb-2"
+                  />
                   <div className="border rounded-lg overflow-hidden">
                     <div className="h-64 overflow-y-auto p-3 space-y-2">
-                      {groups.length === 0 ? (
+                      {groups.filter(group => 
+                        group.name.toLowerCase().includes(groupSearchTerm.toLowerCase())
+                      ).length === 0 ? (
                         <p className="text-muted-foreground text-center py-8">
-                          No groups available
+                          {groupSearchTerm ? 'No groups match your search' : 'No groups available'}
                         </p>
                       ) : (
-                        groups.map((group) => (
+                        groups.filter(group => 
+                          group.name.toLowerCase().includes(groupSearchTerm.toLowerCase())
+                        ).map((group) => (
                           <div
                             key={group.id}
                             className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50"
@@ -556,14 +568,28 @@ export default function Compose() {
                 <div className="space-y-4">
                   <div>
                     <Label className="mb-2 block">Select Members</Label>
+                    <Input
+                      placeholder="Search by name or phone number..."
+                      value={memberSearchTerm}
+                      onChange={(e) => setMemberSearchTerm(e.target.value)}
+                      className="mb-2"
+                    />
                     <div className="border rounded-lg overflow-hidden">
                       <div className="h-64 overflow-y-auto p-3 space-y-2">
-                        {allMembers.length === 0 ? (
+                        {allMembers.filter(member => {
+                          const fullName = `${member.first_name} ${member.last_name}`.toLowerCase();
+                          const searchLower = memberSearchTerm.toLowerCase();
+                          return fullName.includes(searchLower) || member.phone_number.includes(searchLower);
+                        }).length === 0 ? (
                           <p className="text-muted-foreground text-center py-4">
-                            No members available
+                            {memberSearchTerm ? 'No members match your search' : 'No members available'}
                           </p>
                         ) : (
-                          allMembers.map((member) => (
+                          allMembers.filter(member => {
+                            const fullName = `${member.first_name} ${member.last_name}`.toLowerCase();
+                            const searchLower = memberSearchTerm.toLowerCase();
+                            return fullName.includes(searchLower) || member.phone_number.includes(searchLower);
+                          }).map((member) => (
                             <div
                               key={member.id}
                               className="flex items-center space-x-3 p-2 hover:bg-muted/50 rounded"

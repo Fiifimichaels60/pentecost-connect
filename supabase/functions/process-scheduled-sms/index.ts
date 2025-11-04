@@ -8,6 +8,8 @@ const corsHeaders = {
 };
 
 Deno.serve(async (req: Request) => {
+  console.log('Process scheduled SMS function invoked at:', new Date().toISOString());
+  
   if (req.method === "OPTIONS") {
     return new Response(null, {
       status: 200,
@@ -21,6 +23,7 @@ Deno.serve(async (req: Request) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const now = new Date();
+    console.log('Current time:', now.toISOString());
     
     // Fetch scheduled messages that should be sent
     // We combine date and time for proper comparison
@@ -29,7 +32,12 @@ Deno.serve(async (req: Request) => {
       .select('*')
       .eq('status', 'scheduled');
 
-    if (fetchError) throw fetchError;
+    if (fetchError) {
+      console.error('Error fetching scheduled messages:', fetchError);
+      throw fetchError;
+    }
+
+    console.log('Found scheduled messages:', scheduledMessages?.length || 0);
 
     if (!scheduledMessages || scheduledMessages.length === 0) {
       return new Response(
@@ -45,9 +53,13 @@ Deno.serve(async (req: Request) => {
 
     // Filter messages that are due to be sent
     const messagesToSend = scheduledMessages.filter((msg: any) => {
-      const scheduledDateTime = new Date(`${msg.scheduled_date}T${msg.scheduled_time}:00`);
+      // scheduled_time is already in format "HH:MM:SS", so no need to append ":00"
+      const scheduledDateTime = new Date(`${msg.scheduled_date}T${msg.scheduled_time}`);
+      console.log(`Message ${msg.id}: scheduled for ${scheduledDateTime.toISOString()}, now is ${now.toISOString()}, should send: ${scheduledDateTime <= now}`);
       return scheduledDateTime <= now;
     });
+
+    console.log('Messages to send now:', messagesToSend.length);
 
     if (messagesToSend.length === 0) {
       return new Response(
@@ -72,18 +84,26 @@ Deno.serve(async (req: Request) => {
 
         if (updateError) throw updateError;
 
-        const { data: settings } = await supabase
+        const { data: settings, error: settingsError } = await supabase
           .from('nana_settings')
-          .select('value')
+          .select('key, value')
           .in('key', ['hubtel_client_id', 'hubtel_client_secret', 'hubtel_sender_id']);
+
+        if (settingsError) {
+          console.error('Error fetching settings:', settingsError);
+          throw new Error('Failed to fetch Hubtel API settings');
+        }
 
         const clientId = settings?.find(s => s.key === 'hubtel_client_id')?.value;
         const clientSecret = settings?.find(s => s.key === 'hubtel_client_secret')?.value;
         const senderId = settings?.find(s => s.key === 'hubtel_sender_id')?.value;
 
         if (!clientId || !clientSecret || !senderId) {
+          console.error('Missing Hubtel credentials');
           throw new Error('Hubtel credentials not configured');
         }
+
+        console.log('Hubtel credentials loaded successfully');
 
         const { data: campaignData, error: campaignError } = await supabase
           .from('anaji_sms_campaigns')
