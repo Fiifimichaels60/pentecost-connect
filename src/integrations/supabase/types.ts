@@ -250,6 +250,7 @@ export type Database = {
           recipients: string[]
           scheduled_date: string
           scheduled_time: string
+          sent_at: string | null
           status: string
           updated_at: string
         }
@@ -265,6 +266,7 @@ export type Database = {
           recipients?: string[]
           scheduled_date: string
           scheduled_time: string
+          sent_at?: string | null
           status?: string
           updated_at?: string
         }
@@ -280,6 +282,7 @@ export type Database = {
           recipients?: string[]
           scheduled_date?: string
           scheduled_time?: string
+          sent_at?: string | null
           status?: string
           updated_at?: string
         }
