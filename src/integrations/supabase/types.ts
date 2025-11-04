@@ -237,6 +237,62 @@ export type Database = {
           },
         ]
       }
+      anaji_scheduled_sms: {
+        Row: {
+          campaign_name: string
+          created_at: string
+          group_id: string | null
+          id: string
+          message: string
+          recipient_count: number
+          recipient_name: string
+          recipient_type: string
+          recipients: string[]
+          scheduled_date: string
+          scheduled_time: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          campaign_name: string
+          created_at?: string
+          group_id?: string | null
+          id?: string
+          message: string
+          recipient_count?: number
+          recipient_name: string
+          recipient_type: string
+          recipients?: string[]
+          scheduled_date: string
+          scheduled_time: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          campaign_name?: string
+          created_at?: string
+          group_id?: string | null
+          id?: string
+          message?: string
+          recipient_count?: number
+          recipient_name?: string
+          recipient_type?: string
+          recipients?: string[]
+          scheduled_date?: string
+          scheduled_time?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anaji_scheduled_sms_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "anaji_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       anaji_sms_campaigns: {
         Row: {
           campaign_name: string
@@ -1386,10 +1442,7 @@ export type Database = {
         Args: { admin_email: string; admin_password: string }
         Returns: Json
       }
-      cleanup_old_orders: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
+      cleanup_old_orders: { Args: never; Returns: undefined }
       get_tracking_info: {
         Args: { tracking_num: string }
         Returns: {
